@@ -24,4 +24,5 @@ export interface Tab {
   path: string
   entries: FileEntry[]
   loading: boolean
+  error: string | null
 }
