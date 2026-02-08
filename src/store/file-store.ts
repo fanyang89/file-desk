@@ -73,7 +73,7 @@ function getActiveTab(tabs: Tab[], activeTabId: string): Tab | undefined {
 const initialTabId = generateId()
 
 export const useFileStore = create<FileStore>((set, get) => ({
-  tabs: [{ id: initialTabId, path: '', entries: [], loading: false }],
+  tabs: [{ id: initialTabId, path: '', entries: [], loading: false, error: null }],
   activeTabId: initialTabId,
   viewMode: 'list',
   sort: { field: 'name', direction: 'asc' },
@@ -97,7 +97,8 @@ export const useFileStore = create<FileStore>((set, get) => ({
   },
 
   get error() {
-    return null
+    const { tabs, activeTabId } = get()
+    return getActiveTab(tabs, activeTabId)?.error ?? null
   },
 
   addTab: (path = '') => {
@@ -106,6 +107,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
       path,
       entries: [],
       loading: false,
+      error: null,
     }
     set(state => ({
       tabs: [...state.tabs, newTab],
@@ -154,7 +156,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
     // Set loading state for active tab
     set(state => ({
       tabs: state.tabs.map(t =>
-        t.id === activeTabId ? { ...t, loading: true } : t
+        t.id === activeTabId ? { ...t, loading: true, error: null } : t
       ),
       selectedPaths: new Set(),
     }))
@@ -171,10 +173,9 @@ export const useFileStore = create<FileStore>((set, get) => ({
     } catch (err) {
       set(state => ({
         tabs: state.tabs.map(t =>
-          t.id === activeTabId ? { ...t, loading: false } : t
+          t.id === activeTabId ? { ...t, loading: false, error: (err as Error).message } : t
         ),
       }))
-      console.error('Navigate error:', err)
     }
   },
 
@@ -185,7 +186,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
 
     set(state => ({
       tabs: state.tabs.map(t =>
-        t.id === activeTabId ? { ...t, loading: true } : t
+        t.id === activeTabId ? { ...t, loading: true, error: null } : t
       ),
     }))
 
@@ -201,10 +202,9 @@ export const useFileStore = create<FileStore>((set, get) => ({
     } catch (err) {
       set(state => ({
         tabs: state.tabs.map(t =>
-          t.id === activeTabId ? { ...t, loading: false } : t
+          t.id === activeTabId ? { ...t, loading: false, error: (err as Error).message } : t
         ),
       }))
-      console.error('Refresh error:', err)
     }
   },
 
