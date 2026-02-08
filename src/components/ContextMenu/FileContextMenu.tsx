@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ContextMenu } from 'radix-ui'
 import { Download, Pencil, Trash2, FolderOpen, Eye } from 'lucide-react'
 import type { FileEntry } from '@/types'
-import { useFileStore } from '@/store/file-store'
+import { useFileStore, selectCurrentPath } from '@/store/file-store'
 import { getDownloadUrl } from '@/lib/api-client'
 import { RenameDialog } from '@/components/Dialogs/RenameDialog'
 import { DeleteConfirmDialog } from '@/components/Dialogs/DeleteConfirmDialog'
@@ -14,8 +14,11 @@ interface FileContextMenuProps {
 
 export function FileContextMenu({ entry, children }: FileContextMenuProps) {
   const { navigate, openPreview } = useFileStore()
+  const currentPath = useFileStore(selectCurrentPath)
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [renameTargetPath, setRenameTargetPath] = useState<string | null>(null)
+  const [deleteTargetPath, setDeleteTargetPath] = useState<string | null>(null)
 
   const handleDownload = () => {
     const url = getDownloadUrl(entry.path)
@@ -23,6 +26,26 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
     a.href = url
     a.download = entry.name
     a.click()
+  }
+
+  const handleRenameOpen = () => {
+    setRenameTargetPath(currentPath)
+    setRenameOpen(true)
+  }
+
+  const handleDeleteOpen = () => {
+    setDeleteTargetPath(currentPath)
+    setDeleteOpen(true)
+  }
+
+  const handleRenameOpenChange = (open: boolean) => {
+    setRenameOpen(open)
+    if (!open) setRenameTargetPath(null)
+  }
+
+  const handleDeleteOpenChange = (open: boolean) => {
+    setDeleteOpen(open)
+    if (!open) setDeleteTargetPath(null)
   }
 
   return (
@@ -63,14 +86,14 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
             <ContextMenu.Separator className="context-menu-separator" />
             <ContextMenu.Item
               className="context-menu-item"
-              onSelect={() => setRenameOpen(true)}
+              onSelect={handleRenameOpen}
             >
               <Pencil size={14} />
               <span>Rename</span>
             </ContextMenu.Item>
             <ContextMenu.Item
               className="context-menu-item destructive"
-              onSelect={() => setDeleteOpen(true)}
+              onSelect={handleDeleteOpen}
             >
               <Trash2 size={14} />
               <span>Delete</span>
@@ -79,8 +102,18 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
         </ContextMenu.Portal>
       </ContextMenu.Root>
 
-      <RenameDialog entry={entry} open={renameOpen} onOpenChange={setRenameOpen} />
-      <DeleteConfirmDialog entry={entry} open={deleteOpen} onOpenChange={setDeleteOpen} />
+      <RenameDialog
+        entry={entry}
+        targetPath={renameTargetPath}
+        open={renameOpen}
+        onOpenChange={handleRenameOpenChange}
+      />
+      <DeleteConfirmDialog
+        entry={entry}
+        targetPath={deleteTargetPath}
+        open={deleteOpen}
+        onOpenChange={handleDeleteOpenChange}
+      />
     </>
   )
 }

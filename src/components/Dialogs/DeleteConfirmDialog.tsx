@@ -1,24 +1,29 @@
 import { AlertDialog } from 'radix-ui'
 import type { FileEntry } from '@/types'
-import { useFileStore, selectCurrentPath } from '@/store/file-store'
+import { useFileStore } from '@/store/file-store'
 import { deleteEntry } from '@/lib/api-client'
 import { useToast } from '@/components/Toast/useToast'
 
 interface DeleteConfirmDialogProps {
   entry: FileEntry
+  targetPath: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function DeleteConfirmDialog({ entry, open, onOpenChange }: DeleteConfirmDialogProps) {
-  const currentPath = useFileStore(selectCurrentPath)
+export function DeleteConfirmDialog({ entry, targetPath, open, onOpenChange }: DeleteConfirmDialogProps) {
   const refresh = useFileStore(s => s.refresh)
   const clearSelection = useFileStore(s => s.clearSelection)
   const { showToast } = useToast()
 
   const handleDelete = async () => {
+    if (targetPath === null) {
+      showToast('No target directory selected', 'error')
+      return
+    }
+
     try {
-      await deleteEntry(currentPath, entry.name)
+      await deleteEntry(targetPath, entry.name)
       showToast(`"${entry.name}" deleted`)
       clearSelection()
       refresh()
