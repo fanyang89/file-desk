@@ -1,12 +1,19 @@
 import { useState, useEffect } from 'react'
 import { Dialog } from 'radix-ui'
 import { X, Download } from 'lucide-react'
+import Editor from '@monaco-editor/react'
 import { useFileStore } from '@/store/file-store'
 import { getPreviewUrl, getDownloadUrl, fetchTextContent } from '@/lib/api-client'
-import { getPreviewType } from './preview-utils'
+import { getPreviewType, getMonacoLanguage } from './preview-utils'
 import type { PreviewType } from './preview-utils'
 
-function TextPreview({ filePath }: { filePath: string }) {
+interface TextPreviewProps {
+  filePath: string
+  extension: string
+  filename: string
+}
+
+function TextPreview({ filePath, extension, filename }: TextPreviewProps) {
   const [textContent, setTextContent] = useState('')
   const [textLoading, setTextLoading] = useState(true)
   const [textError, setTextError] = useState<string | null>(null)
@@ -39,8 +46,21 @@ function TextPreview({ filePath }: { filePath: string }) {
   if (textLoading) return <div className="preview-loading">Loading...</div>
   if (textError) return <div className="preview-error">{textError}</div>
   return (
-    <div className="preview-text-wrapper">
-      <pre className="preview-text-content">{textContent}</pre>
+    <div className="preview-editor-wrapper">
+      <Editor
+        value={textContent}
+        language={getMonacoLanguage(extension, filename)}
+        theme="vs-dark"
+        options={{
+          readOnly: true,
+          minimap: { enabled: true },
+          scrollBeyondLastLine: false,
+          fontSize: 14,
+          lineNumbers: 'on',
+          wordWrap: 'on',
+          automaticLayout: true,
+        }}
+      />
     </div>
   )
 }
@@ -50,7 +70,7 @@ export function PreviewDialog() {
 
   const isOpen = previewFile !== null
   const previewType: PreviewType = previewFile
-    ? getPreviewType(previewFile.extension)
+    ? getPreviewType(previewFile.extension, previewFile.name)
     : 'unsupported'
 
   const handleDownload = () => {
@@ -83,7 +103,14 @@ export function PreviewDialog() {
       case 'pdf':
         return <iframe src={previewUrl} className="preview-iframe" title={previewFile.name} />
       case 'text':
-        return <TextPreview key={previewFile.path} filePath={previewFile.path} />
+        return (
+          <TextPreview
+            key={previewFile.path}
+            filePath={previewFile.path}
+            extension={previewFile.extension}
+            filename={previewFile.name}
+          />
+        )
       case 'unsupported':
         return (
           <div className="preview-unsupported">
