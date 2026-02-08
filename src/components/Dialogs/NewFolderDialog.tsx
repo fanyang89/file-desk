@@ -7,19 +7,20 @@ import { useToast } from '@/components/Toast/useToast'
 
 interface NewFolderDialogProps {
   targetPath: string | null
+  targetTabId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function NewFolderDialog({ targetPath, open, onOpenChange }: NewFolderDialogProps) {
+export function NewFolderDialog({ targetPath, targetTabId, open, onOpenChange }: NewFolderDialogProps) {
   const [name, setName] = useState('')
-  const refresh = useFileStore(s => s.refresh)
+  const refreshTab = useFileStore(s => s.refreshTab)
   const { showToast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
-    if (targetPath === null) {
+    if (targetPath === null || targetTabId === null) {
       showToast('No target directory selected', 'error')
       return
     }
@@ -27,7 +28,7 @@ export function NewFolderDialog({ targetPath, open, onOpenChange }: NewFolderDia
     try {
       await createFolder(targetPath, name.trim())
       showToast(`Folder "${name.trim()}" created`)
-      refresh()
+      await refreshTab(targetTabId)
       onOpenChange(false)
       setName('')
     } catch (err) {

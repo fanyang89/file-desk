@@ -42,6 +42,7 @@ export function Toolbar() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
   const [newFolderTargetPath, setNewFolderTargetPath] = useState<string | null>(null)
+  const [newFolderTargetTabId, setNewFolderTargetTabId] = useState<string | null>(null)
   const [isEditingPath, setIsEditingPath] = useState(false)
   const [pathInput, setPathInput] = useState('')
   const parentPath = currentPath.split('/').filter(Boolean).slice(0, -1).join('/')
@@ -71,12 +72,16 @@ export function Toolbar() {
 
   const handleNewFolderOpen = () => {
     setNewFolderTargetPath(currentPath)
+    setNewFolderTargetTabId(activeTabId)
     setNewFolderOpen(true)
   }
 
   const handleNewFolderOpenChange = (open: boolean) => {
     setNewFolderOpen(open)
-    if (!open) setNewFolderTargetPath(null)
+    if (!open) {
+      setNewFolderTargetPath(null)
+      setNewFolderTargetTabId(null)
+    }
   }
 
   const handlePathSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -252,6 +257,7 @@ export function Toolbar() {
 
       <NewFolderDialog
         targetPath={newFolderTargetPath}
+        targetTabId={newFolderTargetTabId}
         open={newFolderOpen}
         onOpenChange={handleNewFolderOpenChange}
       />

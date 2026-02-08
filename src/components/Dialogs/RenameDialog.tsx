@@ -9,19 +9,20 @@ import { useToast } from '@/components/Toast/useToast'
 interface RenameDialogProps {
   entry: FileEntry
   targetPath: string | null
+  targetTabId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-function RenameForm({ entry, targetPath, onOpenChange }: Omit<RenameDialogProps, 'open'>) {
+function RenameForm({ entry, targetPath, targetTabId, onOpenChange }: Omit<RenameDialogProps, 'open'>) {
   const [newName, setNewName] = useState(entry.name)
-  const refresh = useFileStore(s => s.refresh)
+  const refreshTab = useFileStore(s => s.refreshTab)
   const { showToast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newName.trim() || newName.trim() === entry.name) return
-    if (targetPath === null) {
+    if (targetPath === null || targetTabId === null) {
       showToast('No target directory selected', 'error')
       return
     }
@@ -29,7 +30,7 @@ function RenameForm({ entry, targetPath, onOpenChange }: Omit<RenameDialogProps,
     try {
       await renameEntry(targetPath, entry.name, newName.trim())
       showToast(`Renamed to "${newName.trim()}"`)
-      refresh()
+      await refreshTab(targetTabId)
       onOpenChange(false)
     } catch (err) {
       showToast((err as Error).message, 'error')
@@ -72,7 +73,7 @@ function RenameForm({ entry, targetPath, onOpenChange }: Omit<RenameDialogProps,
   )
 }
 
-export function RenameDialog({ entry, targetPath, open, onOpenChange }: RenameDialogProps) {
+export function RenameDialog({ entry, targetPath, targetTabId, open, onOpenChange }: RenameDialogProps) {
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -84,6 +85,7 @@ export function RenameDialog({ entry, targetPath, open, onOpenChange }: RenameDi
               key={entry.path}
               entry={entry}
               targetPath={targetPath}
+              targetTabId={targetTabId}
               onOpenChange={onOpenChange}
             />
           )}
