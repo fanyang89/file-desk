@@ -1,0 +1,55 @@
+import path from 'path'
+import fs from 'fs/promises'
+
+const ROOT = process.cwd()
+
+export function safePath(relativePath: string): string {
+  const resolved = path.resolve(ROOT, relativePath)
+  if (!resolved.startsWith(ROOT)) {
+    throw new Error('Path escapes root directory')
+  }
+  return resolved
+}
+
+export function relPath(absolutePath: string): string {
+  return path.relative(ROOT, absolutePath)
+}
+
+export async function exists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const MIME_MAP: Record<string, string> = {
+  '.html': 'text/html',
+  '.css': 'text/css',
+  '.js': 'application/javascript',
+  '.json': 'application/json',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.svg': 'image/svg+xml',
+  '.pdf': 'application/pdf',
+  '.zip': 'application/zip',
+  '.txt': 'text/plain',
+  '.md': 'text/markdown',
+  '.ts': 'text/typescript',
+  '.tsx': 'text/typescript',
+  '.mp4': 'video/mp4',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.webp': 'image/webp',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+}
+
+export function getMimeType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase()
+  return MIME_MAP[ext] || 'application/octet-stream'
+}

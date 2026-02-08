@@ -1,0 +1,20 @@
+export interface FileEntry {
+  name: string
+  path: string
+  isDirectory: boolean
+  size: number
+  modifiedAt: string
+  createdAt: string
+  extension: string
+}
+
+export type ViewMode = 'list' | 'grid'
+
+export type SortField = 'name' | 'size' | 'modifiedAt'
+
+export type SortDirection = 'asc' | 'desc'
+
+export interface SortConfig {
+  field: SortField
+  direction: SortDirection
+}
