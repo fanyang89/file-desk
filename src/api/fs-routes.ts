@@ -10,6 +10,7 @@ import { safePath, relPath, getMimeType, isImageFile } from './fs-utils'
 
 const THUMBNAIL_SIZE = 300
 const THUMBNAIL_CACHE_DIR = path.join(os.tmpdir(), 'file-desk-thumbnails')
+const THUMBNAIL_CACHE_VERSION = '1'
 
 interface FileEntry {
   name: string
@@ -43,6 +44,53 @@ function parseBody(req: IncomingMessage): Promise<Record<string, unknown>> {
     })
     req.on('error', reject)
   })
+}
+
+function createThumbnailEtag(
+  absPath: string,
+  sourceSize: number,
+  sourceMtimeMs: number,
+  format: 'svg' | 'webp'
+): string {
+  const hash = crypto
+    .createHash('sha1')
+    .update(
+      `${THUMBNAIL_CACHE_VERSION}:${format}:${THUMBNAIL_SIZE}:${absPath}:${sourceSize}:${sourceMtimeMs}`
+    )
+    .digest('base64url')
+
+  return `"${hash}"`
+}
+
+function hasMatchingEtag(ifNoneMatch: string | undefined, etag: string): boolean {
+  if (!ifNoneMatch) {
+    return false
+  }
+
+  if (ifNoneMatch.trim() === '*') {
+    return true
+  }
+
+  return ifNoneMatch
+    .split(',')
+    .map(token => token.trim())
+    .includes(etag)
+}
+
+function hasNotBeenModified(
+  ifModifiedSince: string | undefined,
+  sourceMtimeMs: number
+): boolean {
+  if (!ifModifiedSince) {
+    return false
+  }
+
+  const modifiedSinceMs = Date.parse(ifModifiedSince)
+  if (Number.isNaN(modifiedSinceMs)) {
+    return false
+  }
+
+  return Math.floor(sourceMtimeMs / 1000) <= Math.floor(modifiedSinceMs / 1000)
 }
 
 export async function handleListFiles(
@@ -245,12 +293,35 @@ export async function handleThumbnail(
       return
     }
 
+    const sourceMtimeMs = stat.mtime.getTime()
+    const sourceLastModified = stat.mtime.toUTCString()
+    const hasVersionToken = url.searchParams.has('v')
+    const cacheControl = hasVersionToken
+      ? 'public, max-age=86400, immutable'
+      : 'public, max-age=0, must-revalidate'
+
     // SVG files don't need resizing
     if (ext === 'svg') {
+      const etag = createThumbnailEtag(absPath, stat.size, sourceMtimeMs, 'svg')
+      if (
+        hasMatchingEtag(req.headers['if-none-match'], etag) ||
+        hasNotBeenModified(req.headers['if-modified-since'], sourceMtimeMs)
+      ) {
+        res.writeHead(304, {
+          'Cache-Control': cacheControl,
+          ETag: etag,
+          'Last-Modified': sourceLastModified,
+        })
+        res.end()
+        return
+      }
+
       res.writeHead(200, {
         'Content-Type': 'image/svg+xml',
         'Content-Length': stat.size,
-        'Cache-Control': 'public, max-age=86400',
+        'Cache-Control': cacheControl,
+        ETag: etag,
+        'Last-Modified': sourceLastModified,
       })
       createReadStream(absPath).pipe(res)
       return
@@ -280,11 +351,27 @@ export async function handleThumbnail(
     }
 
     const cacheStat = await fs.stat(cachePath)
+    const etag = createThumbnailEtag(absPath, stat.size, sourceMtimeMs, 'webp')
+
+    if (
+      hasMatchingEtag(req.headers['if-none-match'], etag) ||
+      hasNotBeenModified(req.headers['if-modified-since'], sourceMtimeMs)
+    ) {
+      res.writeHead(304, {
+        'Cache-Control': cacheControl,
+        ETag: etag,
+        'Last-Modified': sourceLastModified,
+      })
+      res.end()
+      return
+    }
 
     res.writeHead(200, {
       'Content-Type': 'image/webp',
       'Content-Length': cacheStat.size,
-      'Cache-Control': 'public, max-age=86400',
+      'Cache-Control': cacheControl,
+      ETag: etag,
+      'Last-Modified': sourceLastModified,
     })
 
     createReadStream(cachePath).pipe(res)
