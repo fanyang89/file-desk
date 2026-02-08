@@ -16,6 +16,11 @@ interface ListResponse {
   currentPath: string
 }
 
+export interface ListFilesOptions {
+  recursive?: boolean
+  imagesOnly?: boolean
+}
+
 interface SuccessResponse {
   success: boolean
 }
@@ -127,12 +132,28 @@ async function requestJsonWithMock<T>({
 }
 
 export async function listFiles(path: string): Promise<ListResponse> {
+  return listFilesWithOptions(path, {})
+}
+
+async function listFilesWithOptions(path: string, options: ListFilesOptions): Promise<ListResponse> {
+  const query = new URLSearchParams({ path })
+  if (options.recursive) query.set('recursive', '1')
+  if (options.imagesOnly) query.set('imagesOnly', '1')
+
   return requestJsonWithMock({
-    url: `/api/files?path=${encodeURIComponent(path)}`,
+    url: `/api/files?${query.toString()}`,
     fallbackReason: 'GET /api/files',
     errorFallback: 'Failed to list files',
-    mockValue: () => mockListFiles(path),
+    mockValue: () => mockListFiles(path, options),
   })
+}
+
+export async function listFilesRecursive(path: string): Promise<ListResponse> {
+  return listFilesWithOptions(path, { recursive: true })
+}
+
+export async function listImagesRecursive(path: string): Promise<ListResponse> {
+  return listFilesWithOptions(path, { recursive: true, imagesOnly: true })
 }
 
 export async function createFolder(path: string, name: string): Promise<SuccessResponse> {
@@ -207,6 +228,15 @@ export function getPreviewUrl(filePath: string): string {
     return getMockPreviewUrl(filePath)
   }
   return `/api/preview?path=${encodeURIComponent(filePath)}`
+}
+
+export function getThumbnailUrl(filePath: string, modifiedAt: string): string {
+  if (mockModeEnabled && hasMockEntry(filePath)) {
+    return getMockPreviewUrl(filePath)
+  }
+
+  const query = new URLSearchParams({ path: filePath, v: modifiedAt })
+  return `/api/thumbnail?${query.toString()}`
 }
 
 export async function fetchTextContent(filePath: string, signal?: AbortSignal): Promise<string> {

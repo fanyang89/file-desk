@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import type { FileEntry } from '@/types'
 import { useFileStore } from '@/store/file-store'
+import { getThumbnailUrl } from '@/lib/api-client'
 
 interface PhotoCardProps {
   entry: FileEntry
 }
 
 export function PhotoCard({ entry }: PhotoCardProps) {
-  const { selectedPaths, toggleSelection, setSelectedPaths } = useFileStore()
+  const { selectedPaths, toggleSelection, setSelectedPaths, openPreview } = useFileStore()
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(false)
   const isSelected = selectedPaths.has(entry.path)
@@ -21,12 +22,18 @@ export function PhotoCard({ entry }: PhotoCardProps) {
     }
   }
 
-  const thumbnailUrl = `/api/thumbnail?path=${encodeURIComponent(entry.path)}&v=${encodeURIComponent(entry.modifiedAt)}`
+  const handleDoubleClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    openPreview(entry)
+  }
+
+  const thumbnailUrl = getThumbnailUrl(entry.path, entry.modifiedAt)
 
   return (
     <div
       className={`photo-card ${isSelected ? 'selected' : ''}`}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
     >
       {!error ? (
         <img
