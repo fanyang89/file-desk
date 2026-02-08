@@ -15,6 +15,7 @@ A modern, browser-based local file manager with a Google Drive-like interface.
 
 ## Tech Stack
 
+- **Bun** - JavaScript runtime and package manager
 - **React 19** + **TypeScript** - Frontend framework
 - **Vite** - Build tool and dev server
 - **Zustand** - State management
@@ -26,13 +27,13 @@ A modern, browser-based local file manager with a Google Drive-like interface.
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Start development server
-npm run dev
+bun run dev
 
 # Build for production
-npm run build
+bun run build
 ```
 
 ## Project Structure
