@@ -72,3 +72,11 @@ export function getMimeType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase()
   return MIME_MAP[ext] || 'application/octet-stream'
 }
+
+const IMAGE_EXTENSIONS = new Set([
+  'png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'
+])
+
+export function isImageFile(extension: string): boolean {
+  return IMAGE_EXTENSIONS.has(extension.toLowerCase())
+}

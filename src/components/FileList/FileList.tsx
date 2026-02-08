@@ -3,6 +3,7 @@ import { Loader2, FolderOpen } from 'lucide-react'
 import { useFileStore, selectEntries, selectLoading, selectError } from '@/store/file-store'
 import { ListView } from './ListView'
 import { GridView } from './GridView'
+import { PhotoView } from './PhotoView'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 
 export function FileList() {
@@ -53,8 +54,10 @@ export function FileList() {
     <div className="file-list" onClick={handleBackgroundClick}>
       {viewMode === 'list' ? (
         <ListView entries={entries} />
-      ) : (
+      ) : viewMode === 'grid' ? (
         <GridView entries={entries} />
+      ) : (
+        <PhotoView entries={entries} />
       )}
     </div>
   )

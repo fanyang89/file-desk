@@ -3,7 +3,7 @@ import fs from 'fs/promises'
 import { createReadStream, createWriteStream } from 'fs'
 import path from 'path'
 import Busboy from 'busboy'
-import { safePath, relPath, getMimeType } from './fs-utils'
+import { safePath, relPath, getMimeType, isImageFile } from './fs-utils'
 
 interface FileEntry {
   name: string
@@ -209,6 +209,42 @@ export async function handlePreview(
       'Content-Type': mimeType,
       'Content-Disposition': `inline; filename="${encodeURIComponent(fileName)}"`,
       'Content-Length': stat.size,
+    })
+
+    const stream = createReadStream(absPath)
+    stream.pipe(res)
+  } catch (err) {
+    sendError(res, (err as Error).message, 500)
+  }
+}
+
+export async function handleThumbnail(
+  req: IncomingMessage,
+  res: ServerResponse
+) {
+  try {
+    const url = new URL(req.url!, `http://${req.headers.host}`)
+    const filePath = url.searchParams.get('path') || ''
+    const absPath = safePath(filePath)
+
+    const ext = path.extname(absPath).slice(1).toLowerCase()
+    if (!isImageFile(ext)) {
+      sendError(res, 'Not an image file', 400)
+      return
+    }
+
+    const stat = await fs.stat(absPath)
+    if (stat.isDirectory()) {
+      sendError(res, 'Cannot get thumbnail of a directory', 400)
+      return
+    }
+
+    const mimeType = getMimeType(absPath)
+
+    res.writeHead(200, {
+      'Content-Type': mimeType,
+      'Content-Length': stat.size,
+      'Cache-Control': 'public, max-age=86400',
     })
 
     const stream = createReadStream(absPath)

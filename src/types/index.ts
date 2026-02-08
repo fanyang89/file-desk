@@ -8,7 +8,7 @@ export interface FileEntry {
   extension: string
 }
 
-export type ViewMode = 'list' | 'grid'
+export type ViewMode = 'list' | 'grid' | 'photo'
 
 export type SortField = 'name' | 'size' | 'modifiedAt'
 
