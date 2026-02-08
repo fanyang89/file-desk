@@ -1,73 +1,63 @@
-# React + TypeScript + Vite
+# File Desk
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, browser-based local file manager with a Google Drive-like interface.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **File & Folder Management** - Create, rename, delete folders and files
+- **File Upload & Download** - Upload multiple files at once, download individual files
+- **Dual View Modes** - Switch between list view and grid view
+- **Sorting** - Sort by name, size, or modification date
+- **Selection** - Single and multi-select with Ctrl/Cmd+Click
+- **Context Menu** - Right-click for quick file operations
+- **Virtual Scrolling** - Efficient rendering for large file listings
+- **Keyboard Shortcuts** - Ctrl/Cmd+A to select all, Escape to clear selection, Enter to open folders
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is currently not compatible with SWC. See [this issue](https://github.com/vitejs/vite-plugin-react/issues/428) for tracking the progress.
+- **React 19** + **TypeScript** - Frontend framework
+- **Vite** - Build tool and dev server
+- **Zustand** - State management
+- **Radix UI** - Component library and theming
+- **react-virtuoso** - Virtual scrolling
+- **lucide-react** - Icons
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+```bash
+# Install dependencies
+npm install
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+# Start development server
+npm run dev
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Build for production
+npm run build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Project Structure
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+src/
+├── components/     # React UI components
+├── store/          # Zustand state management
+├── api/            # Backend API routes (Vite middleware)
+├── lib/            # Utilities (API client, formatters)
+├── hooks/          # Custom React hooks
+└── types/          # TypeScript type definitions
+```
+
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/files?path=...` | List files in directory |
+| POST | `/api/mkdir` | Create folder |
+| POST | `/api/rename` | Rename file/folder |
+| DELETE | `/api/delete` | Delete file/folder |
+| POST | `/api/upload?path=...` | Upload files |
+| GET | `/api/download?path=...` | Download file |
+
+## License
+
+MIT
