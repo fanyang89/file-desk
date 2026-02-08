@@ -1,6 +1,12 @@
 import { useEffect } from 'react'
 import { Loader2, FolderOpen } from 'lucide-react'
-import { useFileStore, selectEntries, selectLoading, selectError } from '@/store/file-store'
+import {
+  useFileStore,
+  selectEntries,
+  selectLoading,
+  selectError,
+  selectCurrentPath,
+} from '@/store/file-store'
 import { ListView } from './ListView'
 import { GridView } from './GridView'
 import { PhotoView } from './PhotoView'
@@ -10,6 +16,7 @@ export function FileList() {
   const entries = useFileStore(selectEntries)
   const loading = useFileStore(selectLoading)
   const error = useFileStore(selectError)
+  const currentPath = useFileStore(selectCurrentPath)
   const viewMode = useFileStore(s => s.viewMode)
   const navigate = useFileStore(s => s.navigate)
   const clearSelection = useFileStore(s => s.clearSelection)
@@ -41,7 +48,7 @@ export function FileList() {
     )
   }
 
-  if (entries.length === 0) {
+  if (viewMode !== 'photo' && entries.length === 0) {
     return (
       <div className="file-list-empty" onClick={handleBackgroundClick}>
         <FolderOpen size={48} strokeWidth={1} />
@@ -57,7 +64,7 @@ export function FileList() {
       ) : viewMode === 'grid' ? (
         <GridView entries={entries} />
       ) : (
-        <PhotoView entries={entries} />
+        <PhotoView path={currentPath} />
       )}
     </div>
   )

@@ -22,6 +22,12 @@ interface FileEntry {
   extension: string
 }
 
+function isTruthyQuery(value: string | null): boolean {
+  if (!value) return false
+  const normalized = value.trim().toLowerCase()
+  return normalized === '1' || normalized === 'true'
+}
+
 function sendJson(res: ServerResponse, data: unknown, status = 200) {
   res.writeHead(status, { 'Content-Type': 'application/json' })
   res.end(JSON.stringify(data))
@@ -93,6 +99,53 @@ function hasNotBeenModified(
   return Math.floor(sourceMtimeMs / 1000) <= Math.floor(modifiedSinceMs / 1000)
 }
 
+async function toFileEntry(fullPath: string, name: string, isDirectory: boolean): Promise<FileEntry> {
+  const stat = await fs.stat(fullPath)
+  return {
+    name,
+    path: relPath(fullPath),
+    isDirectory,
+    size: stat.size,
+    modifiedAt: stat.mtime.toISOString(),
+    createdAt: stat.birthtime.toISOString(),
+    extension: isDirectory ? '' : path.extname(name).slice(1).toLowerCase(),
+  }
+}
+
+async function collectRecursiveEntries(
+  baseAbsPath: string,
+  imagesOnly: boolean
+): Promise<FileEntry[]> {
+  const files: FileEntry[] = []
+
+  const walk = async (dirPath: string): Promise<void> => {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true })
+
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || entry.isSymbolicLink()) continue
+
+      const fullPath = path.join(dirPath, entry.name)
+      if (entry.isDirectory()) {
+        if (!imagesOnly) {
+          files.push(await toFileEntry(fullPath, entry.name, true))
+        }
+        await walk(fullPath)
+        continue
+      }
+
+      const extension = path.extname(entry.name).slice(1).toLowerCase()
+      if (imagesOnly && !isImageFile(extension)) {
+        continue
+      }
+
+      files.push(await toFileEntry(fullPath, entry.name, false))
+    }
+  }
+
+  await walk(baseAbsPath)
+  return files
+}
+
 export async function handleListFiles(
   req: IncomingMessage,
   res: ServerResponse
@@ -100,26 +153,24 @@ export async function handleListFiles(
   try {
     const url = new URL(req.url!, `http://${req.headers.host}`)
     const dirPath = url.searchParams.get('path') || ''
+    const recursive = isTruthyQuery(url.searchParams.get('recursive'))
+    const imagesOnly = isTruthyQuery(url.searchParams.get('imagesOnly'))
     const absPath = safePath(dirPath)
 
-    const entries = await fs.readdir(absPath, { withFileTypes: true })
-    const files: FileEntry[] = await Promise.all(
-      entries
-        .filter(e => !e.name.startsWith('.'))
-        .map(async (entry) => {
-          const fullPath = path.join(absPath, entry.name)
-          const stat = await fs.stat(fullPath)
-          return {
-            name: entry.name,
-            path: relPath(fullPath),
-            isDirectory: entry.isDirectory(),
-            size: stat.size,
-            modifiedAt: stat.mtime.toISOString(),
-            createdAt: stat.birthtime.toISOString(),
-            extension: entry.isDirectory() ? '' : path.extname(entry.name).slice(1).toLowerCase(),
-          }
-        })
-    )
+    let files: FileEntry[]
+    if (recursive) {
+      files = await collectRecursiveEntries(absPath, imagesOnly)
+    } else {
+      const entries = await fs.readdir(absPath, { withFileTypes: true })
+      const immediateEntries = await Promise.all(
+        entries
+          .filter(e => !e.name.startsWith('.'))
+          .map(entry => toFileEntry(path.join(absPath, entry.name), entry.name, entry.isDirectory()))
+      )
+      files = imagesOnly
+        ? immediateEntries.filter(e => !e.isDirectory && isImageFile(e.extension))
+        : immediateEntries
+    }
 
     sendJson(res, { files, currentPath: dirPath })
   } catch (err) {

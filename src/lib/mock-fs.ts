@@ -26,6 +26,8 @@ const TEXT_EXTENSIONS = new Set([
   'log', 'sql', 'graphql',
 ])
 
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp'])
+
 const root = createDir('')
 
 function nowIso(): string {
@@ -146,6 +148,10 @@ function makeDataUrl(content: string, mimeType: string): string {
   return `data:${mimeType};charset=utf-8,${encodeURIComponent(content)}`
 }
 
+function isImageExtension(extension: string): boolean {
+  return IMAGE_EXTENSIONS.has(extension.toLowerCase())
+}
+
 function toEntry(parentPath: string, node: MockNode): FileEntry {
   const fullPath = joinPath(parentPath, node.name)
   if (node.kind === 'dir') {
@@ -203,12 +209,48 @@ function seedMockData() {
 
 seedMockData()
 
-export function mockListFiles(path: string): { files: FileEntry[]; currentPath: string } {
+interface MockListFilesOptions {
+  recursive?: boolean
+  imagesOnly?: boolean
+}
+
+function collectListEntries(
+  dir: MockDir,
+  parentPath: string,
+  options: MockListFilesOptions,
+  files: FileEntry[]
+): void {
+  for (const node of dir.children.values()) {
+    if (node.name.startsWith('.')) continue
+
+    if (node.kind === 'dir') {
+      if (!options.imagesOnly) {
+        files.push(toEntry(parentPath, node))
+      }
+      if (options.recursive) {
+        collectListEntries(node, joinPath(parentPath, node.name), options, files)
+      }
+      continue
+    }
+
+    if (options.imagesOnly && !isImageExtension(node.extension)) {
+      continue
+    }
+
+    files.push(toEntry(parentPath, node))
+  }
+}
+
+export function mockListFiles(
+  path: string,
+  options: MockListFilesOptions = {}
+): { files: FileEntry[]; currentPath: string } {
   const normalizedPath = normalizePath(path)
   const dir = getDir(normalizedPath)
   if (!dir) throw new Error(`Directory not found: /${normalizedPath}`)
 
-  const files = Array.from(dir.children.values()).map(node => toEntry(normalizedPath, node))
+  const files: FileEntry[] = []
+  collectListEntries(dir, normalizedPath, options, files)
   return { files, currentPath: normalizedPath }
 }
 
