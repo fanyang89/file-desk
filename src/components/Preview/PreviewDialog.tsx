@@ -6,29 +6,15 @@ import { getPreviewUrl, getDownloadUrl, fetchTextContent } from '@/lib/api-clien
 import { getPreviewType } from './preview-utils'
 import type { PreviewType } from './preview-utils'
 
-export function PreviewDialog() {
-  const { previewFile, closePreview } = useFileStore()
+function TextPreview({ filePath }: { filePath: string }) {
   const [textContent, setTextContent] = useState('')
-  const [textLoading, setTextLoading] = useState(false)
+  const [textLoading, setTextLoading] = useState(true)
   const [textError, setTextError] = useState<string | null>(null)
 
-  const isOpen = previewFile !== null
-  const previewType: PreviewType = previewFile
-    ? getPreviewType(previewFile.extension)
-    : 'unsupported'
-
   useEffect(() => {
-    if (!previewFile || previewType !== 'text') {
-      setTextContent('')
-      setTextError(null)
-      return
-    }
-
     const abortController = new AbortController()
-    setTextLoading(true)
-    setTextError(null)
 
-    fetchTextContent(previewFile.path, abortController.signal)
+    fetchTextContent(filePath, abortController.signal)
       .then((content) => {
         if (!abortController.signal.aborted) {
           setTextContent(content)
@@ -48,7 +34,24 @@ export function PreviewDialog() {
     return () => {
       abortController.abort()
     }
-  }, [previewFile, previewType])
+  }, [filePath])
+
+  if (textLoading) return <div className="preview-loading">Loading...</div>
+  if (textError) return <div className="preview-error">{textError}</div>
+  return (
+    <div className="preview-text-wrapper">
+      <pre className="preview-text-content">{textContent}</pre>
+    </div>
+  )
+}
+
+export function PreviewDialog() {
+  const { previewFile, closePreview } = useFileStore()
+
+  const isOpen = previewFile !== null
+  const previewType: PreviewType = previewFile
+    ? getPreviewType(previewFile.extension)
+    : 'unsupported'
 
   const handleDownload = () => {
     if (!previewFile) return
@@ -80,13 +83,7 @@ export function PreviewDialog() {
       case 'pdf':
         return <iframe src={previewUrl} className="preview-iframe" title={previewFile.name} />
       case 'text':
-        if (textLoading) return <div className="preview-loading">Loading...</div>
-        if (textError) return <div className="preview-error">{textError}</div>
-        return (
-          <div className="preview-text-wrapper">
-            <pre className="preview-text-content">{textContent}</pre>
-          </div>
-        )
+        return <TextPreview key={previewFile.path} filePath={previewFile.path} />
       case 'unsupported':
         return (
           <div className="preview-unsupported">
