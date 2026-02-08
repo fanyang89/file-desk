@@ -1,12 +1,17 @@
 import { useEffect } from 'react'
 import { Loader2, FolderOpen } from 'lucide-react'
-import { useFileStore } from '@/store/file-store'
+import { useFileStore, selectEntries, selectLoading, selectError } from '@/store/file-store'
 import { ListView } from './ListView'
 import { GridView } from './GridView'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 
 export function FileList() {
-  const { entries, loading, error, viewMode, navigate, clearSelection } = useFileStore()
+  const entries = useFileStore(selectEntries)
+  const loading = useFileStore(selectLoading)
+  const error = useFileStore(selectError)
+  const viewMode = useFileStore(s => s.viewMode)
+  const navigate = useFileStore(s => s.navigate)
+  const clearSelection = useFileStore(s => s.clearSelection)
 
   useKeyboardShortcuts()
 

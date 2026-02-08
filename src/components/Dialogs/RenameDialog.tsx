@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Dialog } from 'radix-ui'
 import { X } from 'lucide-react'
 import type { FileEntry } from '@/types'
-import { useFileStore } from '@/store/file-store'
+import { useFileStore, selectCurrentPath } from '@/store/file-store'
 import { renameEntry } from '@/lib/api-client'
 import { useToast } from '@/components/Toast/useToast'
 
@@ -14,7 +14,8 @@ interface RenameDialogProps {
 
 function RenameForm({ entry, onOpenChange }: Omit<RenameDialogProps, 'open'>) {
   const [newName, setNewName] = useState(entry.name)
-  const { currentPath, refresh } = useFileStore()
+  const currentPath = useFileStore(selectCurrentPath)
+  const refresh = useFileStore(s => s.refresh)
   const { showToast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {

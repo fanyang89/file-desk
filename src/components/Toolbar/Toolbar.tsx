@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { LayoutGrid, List, FolderPlus, Upload, ArrowUpDown } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
-import { useFileStore } from '@/store/file-store'
+import { useFileStore, selectCurrentPath } from '@/store/file-store'
 import { uploadFiles } from '@/lib/api-client'
 import { useToast } from '@/components/Toast/useToast'
 import { Breadcrumbs } from './Breadcrumbs'
@@ -9,7 +9,12 @@ import { NewFolderDialog } from '@/components/Dialogs/NewFolderDialog'
 import type { SortField, SortDirection } from '@/types'
 
 export function Toolbar() {
-  const { viewMode, setViewMode, sort, setSort, currentPath, refresh } = useFileStore()
+  const viewMode = useFileStore(s => s.viewMode)
+  const setViewMode = useFileStore(s => s.setViewMode)
+  const sort = useFileStore(s => s.sort)
+  const setSort = useFileStore(s => s.setSort)
+  const currentPath = useFileStore(selectCurrentPath)
+  const refresh = useFileStore(s => s.refresh)
   const { showToast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [newFolderOpen, setNewFolderOpen] = useState(false)

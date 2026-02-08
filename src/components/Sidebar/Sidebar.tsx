@@ -1,8 +1,9 @@
 import { HardDrive } from 'lucide-react'
-import { useFileStore } from '@/store/file-store'
+import { useFileStore, selectCurrentPath } from '@/store/file-store'
 
 export function Sidebar() {
-  const { navigate, currentPath } = useFileStore()
+  const navigate = useFileStore(s => s.navigate)
+  const currentPath = useFileStore(selectCurrentPath)
 
   return (
     <aside className="sidebar">

@@ -14,12 +14,6 @@ interface FileStore {
   selectedPaths: Set<string>
   previewFile: FileEntry | null
 
-  // Derived getters
-  currentPath: string
-  entries: FileEntry[]
-  loading: boolean
-  error: string | null
-
   // Tab operations
   addTab: (path?: string) => void
   closeTab: (id: string) => void
@@ -70,6 +64,22 @@ function getActiveTab(tabs: Tab[], activeTabId: string): Tab | undefined {
   return tabs.find(t => t.id === activeTabId)
 }
 
+// Selectors for derived state
+export const selectActiveTab = (state: FileStore): Tab | undefined =>
+  getActiveTab(state.tabs, state.activeTabId)
+
+export const selectCurrentPath = (state: FileStore): string =>
+  selectActiveTab(state)?.path ?? ''
+
+export const selectEntries = (state: FileStore): FileEntry[] =>
+  selectActiveTab(state)?.entries ?? []
+
+export const selectLoading = (state: FileStore): boolean =>
+  selectActiveTab(state)?.loading ?? false
+
+export const selectError = (state: FileStore): string | null =>
+  selectActiveTab(state)?.error ?? null
+
 const initialTabId = generateId()
 
 export const useFileStore = create<FileStore>((set, get) => ({
@@ -79,27 +89,6 @@ export const useFileStore = create<FileStore>((set, get) => ({
   sort: { field: 'name', direction: 'asc' },
   selectedPaths: new Set(),
   previewFile: null,
-
-  // Derived getters (computed on access)
-  get currentPath() {
-    const { tabs, activeTabId } = get()
-    return getActiveTab(tabs, activeTabId)?.path ?? ''
-  },
-
-  get entries() {
-    const { tabs, activeTabId } = get()
-    return getActiveTab(tabs, activeTabId)?.entries ?? []
-  },
-
-  get loading() {
-    const { tabs, activeTabId } = get()
-    return getActiveTab(tabs, activeTabId)?.loading ?? false
-  },
-
-  get error() {
-    const { tabs, activeTabId } = get()
-    return getActiveTab(tabs, activeTabId)?.error ?? null
-  },
 
   addTab: (path = '') => {
     const newTab: Tab = {

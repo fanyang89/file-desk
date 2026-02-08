@@ -1,8 +1,9 @@
 import { ChevronRight, Home } from 'lucide-react'
-import { useFileStore } from '@/store/file-store'
+import { useFileStore, selectCurrentPath } from '@/store/file-store'
 
 export function Breadcrumbs() {
-  const { currentPath, navigate } = useFileStore()
+  const currentPath = useFileStore(selectCurrentPath)
+  const navigate = useFileStore(s => s.navigate)
 
   const segments = currentPath ? currentPath.split('/').filter(Boolean) : []
 
