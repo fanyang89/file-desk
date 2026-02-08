@@ -29,6 +29,7 @@ function formatPathForInput(path: string): string {
 }
 
 export function Toolbar() {
+  const activeTabId = useFileStore(s => s.activeTabId)
   const viewMode = useFileStore(s => s.viewMode)
   const setViewMode = useFileStore(s => s.setViewMode)
   const sort = useFileStore(s => s.sort)
@@ -36,7 +37,7 @@ export function Toolbar() {
   const loading = useFileStore(selectLoading)
   const currentPath = useFileStore(selectCurrentPath)
   const navigate = useFileStore(s => s.navigate)
-  const refresh = useFileStore(s => s.refresh)
+  const refreshTab = useFileStore(s => s.refreshTab)
   const { showToast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [newFolderOpen, setNewFolderOpen] = useState(false)
@@ -50,10 +51,12 @@ export function Toolbar() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files || files.length === 0) return
+    const uploadTabId = activeTabId
+    const uploadPath = currentPath
     try {
-      await uploadFiles(currentPath, files)
+      await uploadFiles(uploadPath, files)
       showToast('Files uploaded successfully')
-      refresh()
+      await refreshTab(uploadTabId)
     } catch (err) {
       showToast((err as Error).message, 'error')
     }
