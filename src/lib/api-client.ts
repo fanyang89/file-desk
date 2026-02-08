@@ -43,6 +43,34 @@ function shouldFallbackToMockError(err: unknown): boolean {
   return err instanceof TypeError
 }
 
+const VERCEL_FALLBACK_MARKERS = [
+  'function_invocation_failed',
+  'a server error has occurred',
+  'authentication required',
+  'vercel authentication',
+  'deployment protection',
+]
+
+async function shouldFallbackToMockResponse(res: Response): Promise<boolean> {
+  if (shouldFallbackToMockStatus(res.status)) return true
+
+  // In preview environments, treat Vercel platform failures/protection pages as API unavailable.
+  if (!CAN_USE_MOCK || !isVercelPreviewHost()) return false
+
+  const vercelErrorHeader = res.headers.get('x-vercel-error')?.toLowerCase() || ''
+  if (vercelErrorHeader.includes('function_invocation_failed')) return true
+
+  if (res.status !== 401 && res.status !== 403 && res.status < 500) return false
+
+  const contentType = res.headers.get('content-type')?.toLowerCase() || ''
+  if (!contentType.includes('text/html') && !contentType.includes('application/json')) {
+    return false
+  }
+
+  const bodyPreview = (await res.clone().text()).slice(0, 4096).toLowerCase()
+  return VERCEL_FALLBACK_MARKERS.some(marker => bodyPreview.includes(marker))
+}
+
 async function readErrorMessage(res: Response, fallback: string): Promise<string> {
   try {
     const err = await res.clone().json() as { error?: string }
@@ -90,7 +118,7 @@ async function requestJsonWithMock<T>({
   }
 
   if (!res.ok) {
-    if (CAN_USE_MOCK && shouldFallbackToMockStatus(res.status)) {
+    if (CAN_USE_MOCK && await shouldFallbackToMockResponse(res)) {
       enableMockMode(`${fallbackReason} -> ${res.status}`)
       return mockValue()
     }
@@ -199,7 +227,7 @@ export async function fetchTextContent(filePath: string, signal?: AbortSignal): 
   }
 
   if (!res.ok) {
-    if (CAN_USE_MOCK && shouldFallbackToMockStatus(res.status) && hasMockEntry(filePath)) {
+    if (CAN_USE_MOCK && hasMockEntry(filePath) && await shouldFallbackToMockResponse(res)) {
       enableMockMode(`GET /api/preview -> ${res.status}`)
       return mockFetchTextContent(filePath)
     }
