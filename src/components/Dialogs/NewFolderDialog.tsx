@@ -1,27 +1,31 @@
 import { useState } from 'react'
 import { Dialog } from 'radix-ui'
 import { X } from 'lucide-react'
-import { useFileStore, selectCurrentPath } from '@/store/file-store'
+import { useFileStore } from '@/store/file-store'
 import { createFolder } from '@/lib/api-client'
 import { useToast } from '@/components/Toast/useToast'
 
 interface NewFolderDialogProps {
+  targetPath: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export function NewFolderDialog({ open, onOpenChange }: NewFolderDialogProps) {
+export function NewFolderDialog({ targetPath, open, onOpenChange }: NewFolderDialogProps) {
   const [name, setName] = useState('')
-  const currentPath = useFileStore(selectCurrentPath)
   const refresh = useFileStore(s => s.refresh)
   const { showToast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
+    if (targetPath === null) {
+      showToast('No target directory selected', 'error')
+      return
+    }
 
     try {
-      await createFolder(currentPath, name.trim())
+      await createFolder(targetPath, name.trim())
       showToast(`Folder "${name.trim()}" created`)
       refresh()
       onOpenChange(false)

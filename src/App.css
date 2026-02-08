@@ -67,17 +67,25 @@
 .toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 8px 16px;
   border-bottom: 1px solid var(--gray-5);
   gap: 12px;
   flex-shrink: 0;
 }
 
+.toolbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
 .toolbar-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .toolbar-btn {
@@ -98,6 +106,11 @@
   color: var(--gray-12);
 }
 
+.toolbar-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .toolbar-btn.active {
   background: var(--accent-3);
   color: var(--accent-11);
@@ -114,42 +127,123 @@
   border-radius: 0;
 }
 
-/* Breadcrumbs */
-.breadcrumbs {
+.path-bar {
+  height: 36px;
+  border: 1px solid var(--gray-6);
+  border-radius: var(--radius-2);
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 0 6px;
+}
+
+.path-bar.editing {
+  border-color: var(--accent-8);
+  box-shadow: 0 0 0 1px var(--accent-8);
+}
+
+.path-breadcrumbs {
   display: flex;
   align-items: center;
   gap: 2px;
-  flex: 1;
   min-width: 0;
   overflow-x: auto;
+  scrollbar-width: thin;
 }
 
-.breadcrumb-item {
+.path-segment-wrap {
   display: flex;
   align-items: center;
-  padding: 4px 8px;
+}
+
+.path-segment {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   border: none;
   background: none;
   border-radius: var(--radius-2);
-  font-size: 14px;
   color: var(--gray-11);
+  padding: 3px 8px;
+  font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
 }
 
-.breadcrumb-item:hover {
+.path-segment:hover {
   background: var(--gray-4);
   color: var(--gray-12);
 }
 
-.breadcrumb-segment {
+.path-segment:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.path-home {
+  padding: 3px 6px;
+}
+
+.path-separator {
+  color: var(--gray-8);
+  flex-shrink: 0;
+}
+
+.path-edit-btn {
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-2);
+  color: var(--gray-9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.path-edit-btn:hover {
+  background: var(--gray-4);
+  color: var(--gray-12);
+}
+
+.path-edit-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.path-form {
+  flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
 }
 
-.breadcrumb-separator {
-  color: var(--gray-8);
-  flex-shrink: 0;
+.path-input {
+  width: 100%;
+  height: 100%;
+  padding: 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--gray-12);
+  font-size: 13px;
+  outline: none;
+}
+
+.path-input:disabled {
+  color: var(--gray-10);
+}
+
+@media (max-width: 900px) {
+  .path-segment {
+    font-size: 12px;
+    padding: 2px 6px;
+  }
 }
 
 /* File List */

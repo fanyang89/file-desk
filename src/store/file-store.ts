@@ -112,20 +112,22 @@ export const useFileStore = create<FileStore>((set, get) => ({
     if (tabs.length <= 1) return // Don't close the last tab
 
     const tabIndex = tabs.findIndex(t => t.id === id)
+    if (tabIndex === -1) return
     const newTabs = tabs.filter(t => t.id !== id)
+    const activeTabChanged = id === activeTabId
 
     // If closing the active tab, switch to an adjacent tab
     let newActiveTabId = activeTabId
-    if (id === activeTabId) {
+    if (activeTabChanged) {
       const newIndex = tabIndex >= newTabs.length ? newTabs.length - 1 : tabIndex
       newActiveTabId = newTabs[newIndex].id
     }
 
-    set({
+    set(state => ({
       tabs: newTabs,
       activeTabId: newActiveTabId,
-      selectedPaths: new Set(),
-    })
+      selectedPaths: activeTabChanged ? new Set() : state.selectedPaths,
+    }))
   },
 
   switchTab: (id: string) => {
