@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "format": "bunx biome format --write .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "pr:create": "bash scripts/codex-pr.sh"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
