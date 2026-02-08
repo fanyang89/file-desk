@@ -18,3 +18,10 @@ export interface SortConfig {
   field: SortField
   direction: SortDirection
 }
+
+export interface Tab {
+  id: string
+  path: string
+  entries: FileEntry[]
+  loading: boolean
+}
