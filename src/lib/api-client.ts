@@ -32,11 +32,15 @@ let mockModeEnabled = false
 function enableMockMode(reason: string): void {
   if (!CAN_USE_MOCK || mockModeEnabled) return
   mockModeEnabled = true
-  console.warn(`[api-client] API unavailable in dev, using mock fs (${reason})`)
+  console.warn(`[api-client] API unavailable, using mock fs (${reason})`)
 }
 
-function shouldFallbackToMock(status: number): boolean {
-  return status === 404 || status === 405 || status >= 500
+function shouldFallbackToMockStatus(status: number): boolean {
+  return status === 404 || status === 405
+}
+
+function shouldFallbackToMockError(err: unknown): boolean {
+  return err instanceof TypeError
 }
 
 async function readErrorMessage(res: Response, fallback: string): Promise<string> {
@@ -55,103 +59,113 @@ async function readErrorMessage(res: Response, fallback: string): Promise<string
   return fallback
 }
 
-export async function listFiles(path: string): Promise<ListResponse> {
+interface RequestWithMockOptions<T> {
+  url: string
+  init?: RequestInit
+  fallbackReason: string
+  errorFallback: string
+  mockValue: () => T | Promise<T>
+}
+
+async function requestJsonWithMock<T>({
+  url,
+  init,
+  fallbackReason,
+  errorFallback,
+  mockValue,
+}: RequestWithMockOptions<T>): Promise<T> {
   if (mockModeEnabled) {
-    return mockListFiles(path)
+    return mockValue()
   }
 
-  const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`)
-  if (!res.ok) {
-    if (CAN_USE_MOCK && shouldFallbackToMock(res.status)) {
-      enableMockMode(`GET /api/files -> ${res.status}`)
-      return mockListFiles(path)
+  let res: Response
+  try {
+    res = await fetch(url, init)
+  } catch (err) {
+    if (CAN_USE_MOCK && shouldFallbackToMockError(err)) {
+      enableMockMode(`${fallbackReason} -> network error`)
+      return mockValue()
     }
-    throw new Error(await readErrorMessage(res, 'Failed to list files'))
+    throw err
   }
-  return res.json() as Promise<ListResponse>
+
+  if (!res.ok) {
+    if (CAN_USE_MOCK && shouldFallbackToMockStatus(res.status)) {
+      enableMockMode(`${fallbackReason} -> ${res.status}`)
+      return mockValue()
+    }
+    throw new Error(await readErrorMessage(res, errorFallback))
+  }
+  return res.json() as Promise<T>
+}
+
+export async function listFiles(path: string): Promise<ListResponse> {
+  return requestJsonWithMock({
+    url: `/api/files?path=${encodeURIComponent(path)}`,
+    fallbackReason: 'GET /api/files',
+    errorFallback: 'Failed to list files',
+    mockValue: () => mockListFiles(path),
+  })
 }
 
 export async function createFolder(path: string, name: string): Promise<SuccessResponse> {
-  if (mockModeEnabled) {
-    return mockCreateFolder(path, name)
-  }
-
-  const res = await fetch('/api/mkdir', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, name }),
+  return requestJsonWithMock({
+    url: '/api/mkdir',
+    init: {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, name }),
+    },
+    fallbackReason: 'POST /api/mkdir',
+    errorFallback: 'Failed to create folder',
+    mockValue: () => mockCreateFolder(path, name),
   })
-  if (!res.ok) {
-    if (CAN_USE_MOCK && shouldFallbackToMock(res.status)) {
-      enableMockMode(`POST /api/mkdir -> ${res.status}`)
-      return mockCreateFolder(path, name)
-    }
-    throw new Error(await readErrorMessage(res, 'Failed to create folder'))
-  }
-  return res.json() as Promise<SuccessResponse>
 }
 
 export async function renameEntry(path: string, oldName: string, newName: string): Promise<SuccessResponse> {
-  if (mockModeEnabled) {
-    return mockRenameEntry(path, oldName, newName)
-  }
-
-  const res = await fetch('/api/rename', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, oldName, newName }),
+  return requestJsonWithMock({
+    url: '/api/rename',
+    init: {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, oldName, newName }),
+    },
+    fallbackReason: 'POST /api/rename',
+    errorFallback: 'Failed to rename',
+    mockValue: () => mockRenameEntry(path, oldName, newName),
   })
-  if (!res.ok) {
-    if (CAN_USE_MOCK && shouldFallbackToMock(res.status)) {
-      enableMockMode(`POST /api/rename -> ${res.status}`)
-      return mockRenameEntry(path, oldName, newName)
-    }
-    throw new Error(await readErrorMessage(res, 'Failed to rename'))
-  }
-  return res.json() as Promise<SuccessResponse>
 }
 
 export async function deleteEntry(path: string, name: string): Promise<SuccessResponse> {
-  if (mockModeEnabled) {
-    return mockDeleteEntry(path, name)
-  }
-
-  const res = await fetch('/api/delete', {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, name }),
+  return requestJsonWithMock({
+    url: '/api/delete',
+    init: {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, name }),
+    },
+    fallbackReason: 'DELETE /api/delete',
+    errorFallback: 'Failed to delete',
+    mockValue: () => mockDeleteEntry(path, name),
   })
-  if (!res.ok) {
-    if (CAN_USE_MOCK && shouldFallbackToMock(res.status)) {
-      enableMockMode(`DELETE /api/delete -> ${res.status}`)
-      return mockDeleteEntry(path, name)
-    }
-    throw new Error(await readErrorMessage(res, 'Failed to delete'))
-  }
-  return res.json() as Promise<SuccessResponse>
 }
 
 export async function uploadFiles(path: string, files: FileList): Promise<{ success: boolean; files: string[] }> {
-  if (mockModeEnabled) {
-    return mockUploadFiles(path, files)
-  }
-
   const formData = new FormData()
   for (const file of files) {
     formData.append('files', file)
   }
-  const res = await fetch(`/api/upload?path=${encodeURIComponent(path)}`, {
-    method: 'POST',
-    body: formData,
+
+  return requestJsonWithMock({
+    url: `/api/upload?path=${encodeURIComponent(path)}`,
+    init: {
+      method: 'POST',
+      body: formData,
+    },
+    fallbackReason: 'POST /api/upload',
+    errorFallback: 'Failed to upload',
+    mockValue: () => mockUploadFiles(path, files),
   })
-  if (!res.ok) {
-    if (CAN_USE_MOCK && shouldFallbackToMock(res.status)) {
-      enableMockMode(`POST /api/upload -> ${res.status}`)
-      return mockUploadFiles(path, files)
-    }
-    throw new Error(await readErrorMessage(res, 'Failed to upload'))
-  }
-  return res.json() as Promise<{ success: boolean; files: string[] }>
 }
 
 export function getDownloadUrl(filePath: string): string {
@@ -173,13 +187,23 @@ export async function fetchTextContent(filePath: string, signal?: AbortSignal): 
     return mockFetchTextContent(filePath)
   }
 
-  const res = await fetch(getPreviewUrl(filePath), { signal })
+  let res: Response
+  try {
+    res = await fetch(getPreviewUrl(filePath), { signal })
+  } catch (err) {
+    if (CAN_USE_MOCK && shouldFallbackToMockError(err) && hasMockEntry(filePath)) {
+      enableMockMode('GET /api/preview -> network error')
+      return mockFetchTextContent(filePath)
+    }
+    throw err
+  }
+
   if (!res.ok) {
-    if (CAN_USE_MOCK && shouldFallbackToMock(res.status) && hasMockEntry(filePath)) {
+    if (CAN_USE_MOCK && shouldFallbackToMockStatus(res.status) && hasMockEntry(filePath)) {
       enableMockMode(`GET /api/preview -> ${res.status}`)
       return mockFetchTextContent(filePath)
     }
-    throw new Error('Failed to load file content')
+    throw new Error(await readErrorMessage(res, 'Failed to load file content'))
   }
   return res.text()
 }
