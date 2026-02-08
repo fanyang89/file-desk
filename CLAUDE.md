@@ -18,6 +18,15 @@ bun run lint     # Run ESLint
 bun run preview  # Preview production build
 ```
 
+## Before Committing
+
+Always run these commands before creating a commit:
+
+```bash
+bunx biome format --write .   # Format code
+bun run lint --fix            # Fix lint issues
+```
+
 ## Architecture
 
 ### Frontend-Backend in One
