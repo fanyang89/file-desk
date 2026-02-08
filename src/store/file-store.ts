@@ -1,17 +1,31 @@
 import { create } from 'zustand'
-import type { FileEntry, ViewMode, SortConfig } from '@/types'
+import type { FileEntry, ViewMode, SortConfig, Tab } from '@/types'
 import { listFiles } from '@/lib/api-client'
 
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 9)
+}
+
 interface FileStore {
-  currentPath: string
-  entries: FileEntry[]
-  loading: boolean
-  error: string | null
+  tabs: Tab[]
+  activeTabId: string
   viewMode: ViewMode
   sort: SortConfig
   selectedPaths: Set<string>
   previewFile: FileEntry | null
 
+  // Derived getters
+  currentPath: string
+  entries: FileEntry[]
+  loading: boolean
+  error: string | null
+
+  // Tab operations
+  addTab: (path?: string) => void
+  closeTab: (id: string) => void
+  switchTab: (id: string) => void
+
+  // Existing operations
   navigate: (path: string) => Promise<void>
   refresh: () => Promise<void>
   setViewMode: (mode: ViewMode) => void
@@ -52,49 +66,163 @@ function sortEntries(entries: FileEntry[], sort: SortConfig): FileEntry[] {
   return [...dirs, ...files]
 }
 
+function getActiveTab(tabs: Tab[], activeTabId: string): Tab | undefined {
+  return tabs.find(t => t.id === activeTabId)
+}
+
+const initialTabId = generateId()
+
 export const useFileStore = create<FileStore>((set, get) => ({
-  currentPath: '',
-  entries: [],
-  loading: false,
-  error: null,
+  tabs: [{ id: initialTabId, path: '', entries: [], loading: false }],
+  activeTabId: initialTabId,
   viewMode: 'list',
   sort: { field: 'name', direction: 'asc' },
   selectedPaths: new Set(),
   previewFile: null,
 
+  // Derived getters (computed on access)
+  get currentPath() {
+    const { tabs, activeTabId } = get()
+    return getActiveTab(tabs, activeTabId)?.path ?? ''
+  },
+
+  get entries() {
+    const { tabs, activeTabId } = get()
+    return getActiveTab(tabs, activeTabId)?.entries ?? []
+  },
+
+  get loading() {
+    const { tabs, activeTabId } = get()
+    return getActiveTab(tabs, activeTabId)?.loading ?? false
+  },
+
+  get error() {
+    return null
+  },
+
+  addTab: (path = '') => {
+    const newTab: Tab = {
+      id: generateId(),
+      path,
+      entries: [],
+      loading: false,
+    }
+    set(state => ({
+      tabs: [...state.tabs, newTab],
+      activeTabId: newTab.id,
+      selectedPaths: new Set(),
+    }))
+    // Load files for the new tab
+    get().navigate(path)
+  },
+
+  closeTab: (id: string) => {
+    const { tabs, activeTabId } = get()
+    if (tabs.length <= 1) return // Don't close the last tab
+
+    const tabIndex = tabs.findIndex(t => t.id === id)
+    const newTabs = tabs.filter(t => t.id !== id)
+
+    // If closing the active tab, switch to an adjacent tab
+    let newActiveTabId = activeTabId
+    if (id === activeTabId) {
+      const newIndex = tabIndex >= newTabs.length ? newTabs.length - 1 : tabIndex
+      newActiveTabId = newTabs[newIndex].id
+    }
+
+    set({
+      tabs: newTabs,
+      activeTabId: newActiveTabId,
+      selectedPaths: new Set(),
+    })
+  },
+
+  switchTab: (id: string) => {
+    const { tabs, activeTabId } = get()
+    if (id === activeTabId) return
+    if (!tabs.find(t => t.id === id)) return
+
+    set({
+      activeTabId: id,
+      selectedPaths: new Set(),
+    })
+  },
+
   navigate: async (path: string) => {
-    set({ loading: true, error: null, selectedPaths: new Set() })
+    const { activeTabId, sort } = get()
+
+    // Set loading state for active tab
+    set(state => ({
+      tabs: state.tabs.map(t =>
+        t.id === activeTabId ? { ...t, loading: true } : t
+      ),
+      selectedPaths: new Set(),
+    }))
+
     try {
       const res = await listFiles(path)
-      set({
-        currentPath: path,
-        entries: sortEntries(res.files, get().sort),
-        loading: false,
-      })
+      set(state => ({
+        tabs: state.tabs.map(t =>
+          t.id === activeTabId
+            ? { ...t, path, entries: sortEntries(res.files, sort), loading: false }
+            : t
+        ),
+      }))
     } catch (err) {
-      set({ error: (err as Error).message, loading: false })
+      set(state => ({
+        tabs: state.tabs.map(t =>
+          t.id === activeTabId ? { ...t, loading: false } : t
+        ),
+      }))
+      console.error('Navigate error:', err)
     }
   },
 
   refresh: async () => {
-    const { currentPath, sort } = get()
-    set({ loading: true, error: null })
+    const { tabs, activeTabId, sort } = get()
+    const activeTab = getActiveTab(tabs, activeTabId)
+    if (!activeTab) return
+
+    set(state => ({
+      tabs: state.tabs.map(t =>
+        t.id === activeTabId ? { ...t, loading: true } : t
+      ),
+    }))
+
     try {
-      const res = await listFiles(currentPath)
-      set({
-        entries: sortEntries(res.files, sort),
-        loading: false,
-      })
+      const res = await listFiles(activeTab.path)
+      set(state => ({
+        tabs: state.tabs.map(t =>
+          t.id === activeTabId
+            ? { ...t, entries: sortEntries(res.files, sort), loading: false }
+            : t
+        ),
+      }))
     } catch (err) {
-      set({ error: (err as Error).message, loading: false })
+      set(state => ({
+        tabs: state.tabs.map(t =>
+          t.id === activeTabId ? { ...t, loading: false } : t
+        ),
+      }))
+      console.error('Refresh error:', err)
     }
   },
 
   setViewMode: (mode) => set({ viewMode: mode }),
 
   setSort: (sort) => {
-    const { entries } = get()
-    set({ sort, entries: sortEntries([...entries], sort) })
+    set(state => {
+      const activeTab = getActiveTab(state.tabs, state.activeTabId)
+      if (!activeTab) return { sort }
+      return {
+        sort,
+        tabs: state.tabs.map(t =>
+          t.id === state.activeTabId
+            ? { ...t, entries: sortEntries([...t.entries], sort) }
+            : t
+        ),
+      }
+    })
   },
 
   toggleSelection: (path, multi) => {
@@ -109,8 +237,10 @@ export const useFileStore = create<FileStore>((set, get) => ({
   },
 
   selectAll: () => {
-    const { entries } = get()
-    set({ selectedPaths: new Set(entries.map(e => e.path)) })
+    const { tabs, activeTabId } = get()
+    const activeTab = getActiveTab(tabs, activeTabId)
+    if (!activeTab) return
+    set({ selectedPaths: new Set(activeTab.entries.map(e => e.path)) })
   },
 
   clearSelection: () => set({ selectedPaths: new Set() }),
