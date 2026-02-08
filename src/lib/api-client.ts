@@ -81,8 +81,8 @@ export function getPreviewUrl(filePath: string): string {
   return `/api/preview?path=${encodeURIComponent(filePath)}`
 }
 
-export async function fetchTextContent(filePath: string): Promise<string> {
-  const res = await fetch(getPreviewUrl(filePath))
+export async function fetchTextContent(filePath: string, signal?: AbortSignal): Promise<string> {
+  const res = await fetch(getPreviewUrl(filePath), { signal })
   if (!res.ok) {
     throw new Error('Failed to load file content')
   }
