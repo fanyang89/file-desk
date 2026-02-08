@@ -5,7 +5,7 @@ const VIDEO_EXTS = new Set(['mp4', 'mov', 'webm'])
 const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'flac', 'aac'])
 const TEXT_EXTS = new Set([
   'txt', 'md', 'json', 'js', 'ts', 'tsx', 'jsx', 'css', 'html', 'xml',
-  'yaml', 'yml', 'toml', 'sh', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h',
+  'yaml', 'yml', 'toml', 'sh', 'py', 'rb', 'go', 'mod', 'rs', 'java', 'c', 'cpp', 'h',
   'log', 'env', 'gitignore', 'lock', 'sql', 'graphql',
   'kt', 'swift', 'scala', 'php', 'lua', 'r', 'pl', 'ex', 'exs', 'clj', 'hs',
 ])
