@@ -7,6 +7,7 @@ import {
   handleUpload,
   handleDownload,
   handlePreview,
+  handleThumbnail,
 } from './fs-routes'
 
 export function fsApiPlugin(): Plugin {
@@ -30,6 +31,8 @@ export function fsApiPlugin(): Plugin {
           handlePreview(req, res)
         } else if (url.startsWith('/api/download')) {
           handleDownload(req, res)
+        } else if (url.startsWith('/api/thumbnail')) {
+          handleThumbnail(req, res)
         } else {
           next()
         }

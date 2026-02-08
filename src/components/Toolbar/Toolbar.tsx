@@ -9,6 +9,7 @@ import {
   Home,
   ChevronRight,
   Pencil,
+  Image,
 } from 'lucide-react'
 import { DropdownMenu } from 'radix-ui'
 import { useFileStore, selectCurrentPath, selectLoading } from '@/store/file-store'
@@ -251,6 +252,13 @@ export function Toolbar() {
             title="Grid view"
           >
             <LayoutGrid size={18} />
+          </button>
+          <button
+            className={`toolbar-btn ${viewMode === 'photo' ? 'active' : ''}`}
+            onClick={() => setViewMode('photo')}
+            title="Photo view"
+          >
+            <Image size={18} />
           </button>
         </div>
       </div>
