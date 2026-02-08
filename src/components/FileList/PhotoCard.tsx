@@ -21,7 +21,7 @@ export function PhotoCard({ entry }: PhotoCardProps) {
     }
   }
 
-  const thumbnailUrl = `/api/thumbnail?path=${encodeURIComponent(entry.path)}`
+  const thumbnailUrl = `/api/thumbnail?path=${encodeURIComponent(entry.path)}&v=${encodeURIComponent(entry.modifiedAt)}`
 
   return (
     <div
