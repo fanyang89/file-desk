@@ -6,6 +6,7 @@ import {
   handleDelete,
   handleUpload,
   handleDownload,
+  handlePreview,
 } from './fs-routes'
 
 export function fsApiPlugin(): Plugin {
@@ -25,6 +26,8 @@ export function fsApiPlugin(): Plugin {
           handleDelete(req, res)
         } else if (url.startsWith('/api/upload') && req.method === 'POST') {
           handleUpload(req, res)
+        } else if (url.startsWith('/api/preview')) {
+          handlePreview(req, res)
         } else if (url.startsWith('/api/download')) {
           handleDownload(req, res)
         } else {

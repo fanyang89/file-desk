@@ -10,6 +10,7 @@ interface FileStore {
   viewMode: ViewMode
   sort: SortConfig
   selectedPaths: Set<string>
+  previewFile: FileEntry | null
 
   navigate: (path: string) => Promise<void>
   refresh: () => Promise<void>
@@ -19,6 +20,8 @@ interface FileStore {
   selectAll: () => void
   clearSelection: () => void
   setSelectedPaths: (paths: Set<string>) => void
+  openPreview: (entry: FileEntry) => void
+  closePreview: () => void
 }
 
 function sortEntries(entries: FileEntry[], sort: SortConfig): FileEntry[] {
@@ -57,6 +60,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
   viewMode: 'list',
   sort: { field: 'name', direction: 'asc' },
   selectedPaths: new Set(),
+  previewFile: null,
 
   navigate: async (path: string) => {
     set({ loading: true, error: null, selectedPaths: new Set() })
@@ -112,4 +116,8 @@ export const useFileStore = create<FileStore>((set, get) => ({
   clearSelection: () => set({ selectedPaths: new Set() }),
 
   setSelectedPaths: (paths) => set({ selectedPaths: paths }),
+
+  openPreview: (entry) => set({ previewFile: entry }),
+
+  closePreview: () => set({ previewFile: null }),
 }))

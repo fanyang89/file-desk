@@ -1,6 +1,7 @@
 import { Sidebar } from '@/components/Sidebar/Sidebar'
 import { Toolbar } from '@/components/Toolbar/Toolbar'
 import { FileList } from '@/components/FileList/FileList'
+import { PreviewDialog } from '@/components/Preview/PreviewDialog'
 
 export function Layout() {
   return (
@@ -10,6 +11,7 @@ export function Layout() {
         <Toolbar />
         <FileList />
       </div>
+      <PreviewDialog />
     </div>
   )
 }

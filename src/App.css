@@ -573,3 +573,141 @@
   opacity: 1;
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* Preview Dialog */
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 1500;
+}
+
+.preview-dialog-content {
+  position: fixed;
+  inset: 16px;
+  background: var(--gray-1);
+  border-radius: var(--radius-3);
+  display: flex;
+  flex-direction: column;
+  z-index: 1501;
+  outline: none;
+  overflow: hidden;
+}
+
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--gray-5);
+  flex-shrink: 0;
+}
+
+.preview-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--gray-12);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+}
+
+.preview-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.preview-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 16px;
+}
+
+.preview-media {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.preview-image {
+  border-radius: var(--radius-2);
+}
+
+.preview-video {
+  border-radius: var(--radius-2);
+  max-height: 100%;
+}
+
+.preview-audio-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 40px;
+}
+
+.preview-audio {
+  width: 100%;
+  max-width: 500px;
+}
+
+.preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: var(--radius-2);
+}
+
+.preview-text-wrapper {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: var(--gray-2);
+  border-radius: var(--radius-2);
+  border: 1px solid var(--gray-5);
+}
+
+.preview-text-content {
+  padding: 16px;
+  margin: 0;
+  font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--gray-12);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  tab-size: 2;
+}
+
+.preview-loading,
+.preview-error {
+  color: var(--gray-9);
+  font-size: 14px;
+}
+
+.preview-error {
+  color: var(--red-9);
+}
+
+.preview-unsupported {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--gray-9);
+  font-size: 15px;
+}
+
+.preview-unsupported .dialog-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
