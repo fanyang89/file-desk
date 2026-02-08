@@ -22,6 +22,7 @@ interface FileStore {
   // Existing operations
   navigate: (path: string) => Promise<void>
   refresh: () => Promise<void>
+  refreshTab: (tabId: string) => Promise<void>
   setViewMode: (mode: ViewMode) => void
   setSort: (sort: SortConfig) => void
   toggleSelection: (path: string, multi: boolean) => void
@@ -142,7 +143,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
   },
 
   navigate: async (path: string) => {
-    const { activeTabId, sort } = get()
+    const { activeTabId } = get()
 
     // Set loading state for active tab
     set(state => ({
@@ -157,7 +158,7 @@ export const useFileStore = create<FileStore>((set, get) => ({
       set(state => ({
         tabs: state.tabs.map(t =>
           t.id === activeTabId
-            ? { ...t, path, entries: sortEntries(res.files, sort), loading: false }
+            ? { ...t, path, entries: sortEntries(res.files, state.sort), loading: false }
             : t
         ),
       }))
@@ -171,29 +172,36 @@ export const useFileStore = create<FileStore>((set, get) => ({
   },
 
   refresh: async () => {
-    const { tabs, activeTabId, sort } = get()
-    const activeTab = getActiveTab(tabs, activeTabId)
-    if (!activeTab) return
+    const { activeTabId } = get()
+    await get().refreshTab(activeTabId)
+  },
+
+  refreshTab: async (tabId: string) => {
+    const { tabs } = get()
+    const tab = tabs.find(t => t.id === tabId)
+    if (!tab) return
+
+    const targetPath = tab.path
 
     set(state => ({
       tabs: state.tabs.map(t =>
-        t.id === activeTabId ? { ...t, loading: true, error: null } : t
+        t.id === tabId ? { ...t, loading: true, error: null } : t
       ),
     }))
 
     try {
-      const res = await listFiles(activeTab.path)
+      const res = await listFiles(targetPath)
       set(state => ({
         tabs: state.tabs.map(t =>
-          t.id === activeTabId
-            ? { ...t, entries: sortEntries(res.files, sort), loading: false }
+          t.id === tabId
+            ? { ...t, entries: sortEntries(res.files, state.sort), loading: false }
             : t
         ),
       }))
     } catch (err) {
       set(state => ({
         tabs: state.tabs.map(t =>
-          t.id === activeTabId ? { ...t, loading: false, error: (err as Error).message } : t
+          t.id === tabId ? { ...t, loading: false, error: (err as Error).message } : t
         ),
       }))
     }
@@ -202,18 +210,13 @@ export const useFileStore = create<FileStore>((set, get) => ({
   setViewMode: (mode) => set({ viewMode: mode }),
 
   setSort: (sort) => {
-    set(state => {
-      const activeTab = getActiveTab(state.tabs, state.activeTabId)
-      if (!activeTab) return { sort }
-      return {
-        sort,
-        tabs: state.tabs.map(t =>
-          t.id === state.activeTabId
-            ? { ...t, entries: sortEntries([...t.entries], sort) }
-            : t
-        ),
-      }
-    })
+    set(state => ({
+      sort,
+      tabs: state.tabs.map(t => ({
+        ...t,
+        entries: sortEntries([...t.entries], sort),
+      })),
+    }))
   },
 
   toggleSelection: (path, multi) => {
