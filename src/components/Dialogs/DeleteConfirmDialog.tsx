@@ -1,6 +1,6 @@
 import { AlertDialog } from 'radix-ui'
 import type { FileEntry } from '@/types'
-import { useFileStore } from '@/store/file-store'
+import { useFileStore, selectCurrentPath } from '@/store/file-store'
 import { deleteEntry } from '@/lib/api-client'
 import { useToast } from '@/components/Toast/useToast'
 
@@ -11,7 +11,9 @@ interface DeleteConfirmDialogProps {
 }
 
 export function DeleteConfirmDialog({ entry, open, onOpenChange }: DeleteConfirmDialogProps) {
-  const { currentPath, refresh, clearSelection } = useFileStore()
+  const currentPath = useFileStore(selectCurrentPath)
+  const refresh = useFileStore(s => s.refresh)
+  const clearSelection = useFileStore(s => s.clearSelection)
   const { showToast } = useToast()
 
   const handleDelete = async () => {

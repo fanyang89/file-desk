@@ -1,8 +1,14 @@
 import { useEffect } from 'react'
-import { useFileStore } from '@/store/file-store'
+import { useFileStore, selectEntries } from '@/store/file-store'
 
 export function useKeyboardShortcuts() {
-  const { selectedPaths, entries, selectAll, clearSelection, navigate, openPreview, previewFile } = useFileStore()
+  const selectedPaths = useFileStore(s => s.selectedPaths)
+  const entries = useFileStore(selectEntries)
+  const selectAll = useFileStore(s => s.selectAll)
+  const clearSelection = useFileStore(s => s.clearSelection)
+  const navigate = useFileStore(s => s.navigate)
+  const openPreview = useFileStore(s => s.openPreview)
+  const previewFile = useFileStore(s => s.previewFile)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
