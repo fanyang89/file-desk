@@ -14,6 +14,13 @@ export interface DateGroup {
   images: FileEntry[]
 }
 
+function getLocalDateKey(date: Date): string {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export function groupImagesByDate(entries: FileEntry[]): DateGroup[] {
   const images = entries.filter(e => !e.isDirectory && isImageFile(e.extension))
 
@@ -21,7 +28,7 @@ export function groupImagesByDate(entries: FileEntry[]): DateGroup[] {
 
   for (const image of images) {
     const date = new Date(image.modifiedAt)
-    const dateKey = date.toISOString().split('T')[0]
+    const dateKey = getLocalDateKey(date)
 
     if (!groups.has(dateKey)) {
       groups.set(dateKey, [])
@@ -33,27 +40,29 @@ export function groupImagesByDate(entries: FileEntry[]): DateGroup[] {
 
   return sortedKeys.map(dateKey => ({
     date: dateKey,
-    label: formatDateHeader(new Date(dateKey)),
+    label: formatDateHeader(dateKey),
     images: groups.get(dateKey)!
   }))
 }
 
-export function formatDateHeader(date: Date): string {
+export function formatDateHeader(dateKey: string): string {
   const today = new Date()
   const yesterday = new Date(today)
   yesterday.setDate(yesterday.getDate() - 1)
 
-  const dateStr = date.toISOString().split('T')[0]
-  const todayStr = today.toISOString().split('T')[0]
-  const yesterdayStr = yesterday.toISOString().split('T')[0]
+  const todayKey = getLocalDateKey(today)
+  const yesterdayKey = getLocalDateKey(yesterday)
 
-  if (dateStr === todayStr) {
+  if (dateKey === todayKey) {
     return 'Today'
   }
 
-  if (dateStr === yesterdayStr) {
+  if (dateKey === yesterdayKey) {
     return 'Yesterday'
   }
+
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
 
   return date.toLocaleDateString('en-US', {
     month: 'long',
