@@ -14,11 +14,14 @@ interface FileContextMenuProps {
 
 export function FileContextMenu({ entry, children }: FileContextMenuProps) {
   const { navigate, openPreview } = useFileStore()
+  const activeTabId = useFileStore(s => s.activeTabId)
   const currentPath = useFileStore(selectCurrentPath)
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [renameTargetPath, setRenameTargetPath] = useState<string | null>(null)
   const [deleteTargetPath, setDeleteTargetPath] = useState<string | null>(null)
+  const [renameTargetTabId, setRenameTargetTabId] = useState<string | null>(null)
+  const [deleteTargetTabId, setDeleteTargetTabId] = useState<string | null>(null)
 
   const handleDownload = () => {
     const url = getDownloadUrl(entry.path)
@@ -30,22 +33,30 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 
   const handleRenameOpen = () => {
     setRenameTargetPath(currentPath)
+    setRenameTargetTabId(activeTabId)
     setRenameOpen(true)
   }
 
   const handleDeleteOpen = () => {
     setDeleteTargetPath(currentPath)
+    setDeleteTargetTabId(activeTabId)
     setDeleteOpen(true)
   }
 
   const handleRenameOpenChange = (open: boolean) => {
     setRenameOpen(open)
-    if (!open) setRenameTargetPath(null)
+    if (!open) {
+      setRenameTargetPath(null)
+      setRenameTargetTabId(null)
+    }
   }
 
   const handleDeleteOpenChange = (open: boolean) => {
     setDeleteOpen(open)
-    if (!open) setDeleteTargetPath(null)
+    if (!open) {
+      setDeleteTargetPath(null)
+      setDeleteTargetTabId(null)
+    }
   }
 
   return (
@@ -105,12 +116,14 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
       <RenameDialog
         entry={entry}
         targetPath={renameTargetPath}
+        targetTabId={renameTargetTabId}
         open={renameOpen}
         onOpenChange={handleRenameOpenChange}
       />
       <DeleteConfirmDialog
         entry={entry}
         targetPath={deleteTargetPath}
+        targetTabId={deleteTargetTabId}
         open={deleteOpen}
         onOpenChange={handleDeleteOpenChange}
       />
