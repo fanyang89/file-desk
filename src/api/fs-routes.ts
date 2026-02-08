@@ -186,3 +186,34 @@ export async function handleDownload(
     sendError(res, (err as Error).message, 500)
   }
 }
+
+export async function handlePreview(
+  req: IncomingMessage,
+  res: ServerResponse
+) {
+  try {
+    const url = new URL(req.url!, `http://${req.headers.host}`)
+    const filePath = url.searchParams.get('path') || ''
+    const absPath = safePath(filePath)
+
+    const stat = await fs.stat(absPath)
+    if (stat.isDirectory()) {
+      sendError(res, 'Cannot preview a directory', 400)
+      return
+    }
+
+    const fileName = path.basename(absPath)
+    const mimeType = getMimeType(absPath)
+
+    res.writeHead(200, {
+      'Content-Type': mimeType,
+      'Content-Disposition': `inline; filename="${encodeURIComponent(fileName)}"`,
+      'Content-Length': stat.size,
+    })
+
+    const stream = createReadStream(absPath)
+    stream.pipe(res)
+  } catch (err) {
+    sendError(res, (err as Error).message, 500)
+  }
+}

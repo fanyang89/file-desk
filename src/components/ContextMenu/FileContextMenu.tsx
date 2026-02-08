@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ContextMenu } from 'radix-ui'
-import { Download, Pencil, Trash2, FolderOpen } from 'lucide-react'
+import { Download, Pencil, Trash2, FolderOpen, Eye } from 'lucide-react'
 import type { FileEntry } from '@/types'
 import { useFileStore } from '@/store/file-store'
 import { getDownloadUrl } from '@/lib/api-client'
@@ -13,7 +13,7 @@ interface FileContextMenuProps {
 }
 
 export function FileContextMenu({ entry, children }: FileContextMenuProps) {
-  const { navigate } = useFileStore()
+  const { navigate, openPreview } = useFileStore()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
@@ -43,13 +43,22 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
               </ContextMenu.Item>
             )}
             {!entry.isDirectory && (
-              <ContextMenu.Item
-                className="context-menu-item"
-                onSelect={handleDownload}
-              >
-                <Download size={14} />
-                <span>Download</span>
-              </ContextMenu.Item>
+              <>
+                <ContextMenu.Item
+                  className="context-menu-item"
+                  onSelect={() => openPreview(entry)}
+                >
+                  <Eye size={14} />
+                  <span>Preview</span>
+                </ContextMenu.Item>
+                <ContextMenu.Item
+                  className="context-menu-item"
+                  onSelect={handleDownload}
+                >
+                  <Download size={14} />
+                  <span>Download</span>
+                </ContextMenu.Item>
+              </>
             )}
             <ContextMenu.Separator className="context-menu-separator" />
             <ContextMenu.Item

@@ -8,7 +8,7 @@ interface FileCardProps {
 }
 
 export function FileCard({ entry }: FileCardProps) {
-  const { navigate, selectedPaths, toggleSelection } = useFileStore()
+  const { navigate, selectedPaths, toggleSelection, openPreview } = useFileStore()
   const isSelected = selectedPaths.has(entry.path)
 
   const handleClick = (e: React.MouseEvent) => {
@@ -19,6 +19,8 @@ export function FileCard({ entry }: FileCardProps) {
   const handleDoubleClick = () => {
     if (entry.isDirectory) {
       navigate(entry.path)
+    } else {
+      openPreview(entry)
     }
   }
 

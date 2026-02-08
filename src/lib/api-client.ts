@@ -76,3 +76,15 @@ export async function uploadFiles(path: string, files: FileList): Promise<{ succ
 export function getDownloadUrl(filePath: string): string {
   return `/api/download?path=${encodeURIComponent(filePath)}`
 }
+
+export function getPreviewUrl(filePath: string): string {
+  return `/api/preview?path=${encodeURIComponent(filePath)}`
+}
+
+export async function fetchTextContent(filePath: string): Promise<string> {
+  const res = await fetch(getPreviewUrl(filePath))
+  if (!res.ok) {
+    throw new Error('Failed to load file content')
+  }
+  return res.text()
+}
