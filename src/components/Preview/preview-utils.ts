@@ -6,7 +6,7 @@ const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'flac', 'aac'])
 const TEXT_EXTS = new Set([
   'txt', 'md', 'json', 'js', 'ts', 'tsx', 'jsx', 'css', 'html', 'xml',
   'yaml', 'yml', 'toml', 'sh', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h',
-  'log', 'env', 'gitignore', 'lock', 'sql', 'graphql', 'dockerfile', 'makefile',
+  'log', 'env', 'gitignore', 'lock', 'sql', 'graphql',
   'kt', 'swift', 'scala', 'php', 'lua', 'r', 'pl', 'ex', 'exs', 'clj', 'hs',
 ])
 
@@ -57,8 +57,6 @@ const LANGUAGE_MAP: Record<string, string> = {
   bash: 'shell',
   sql: 'sql',
   graphql: 'graphql',
-  dockerfile: 'dockerfile',
-  makefile: 'makefile',
   kt: 'kotlin',
   swift: 'swift',
   scala: 'scala',
