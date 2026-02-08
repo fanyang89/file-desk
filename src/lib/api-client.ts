@@ -20,13 +20,12 @@ interface SuccessResponse {
   success: boolean
 }
 
-function isVercelPreviewHost(): boolean {
+function isVercelDeploymentHost(): boolean {
   if (typeof window === 'undefined') return false
-  const host = window.location.hostname
-  return host.endsWith('.vercel.app') && host.includes('-git-')
+  return window.location.hostname.endsWith('.vercel.app')
 }
 
-const CAN_USE_MOCK = import.meta.env.DEV || isVercelPreviewHost()
+const CAN_USE_MOCK = import.meta.env.DEV || isVercelDeploymentHost()
 let mockModeEnabled = false
 
 function enableMockMode(reason: string): void {
@@ -55,7 +54,7 @@ async function shouldFallbackToMockResponse(res: Response): Promise<boolean> {
   if (shouldFallbackToMockStatus(res.status)) return true
 
   // In preview environments, treat Vercel platform failures/protection pages as API unavailable.
-  if (!CAN_USE_MOCK || !isVercelPreviewHost()) return false
+  if (!CAN_USE_MOCK || !isVercelDeploymentHost()) return false
 
   const vercelErrorHeader = res.headers.get('x-vercel-error')?.toLowerCase() || ''
   if (vercelErrorHeader.includes('function_invocation_failed')) return true
