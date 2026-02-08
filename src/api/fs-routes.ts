@@ -1,9 +1,15 @@
 import type { IncomingMessage, ServerResponse } from 'http'
 import fs from 'fs/promises'
-import { createReadStream, createWriteStream } from 'fs'
+import { createReadStream, createWriteStream, existsSync } from 'fs'
 import path from 'path'
+import crypto from 'crypto'
+import os from 'os'
 import Busboy from 'busboy'
+import sharp from 'sharp'
 import { safePath, relPath, getMimeType, isImageFile } from './fs-utils'
+
+const THUMBNAIL_SIZE = 300
+const THUMBNAIL_CACHE_DIR = path.join(os.tmpdir(), 'file-desk-thumbnails')
 
 interface FileEntry {
   name: string
@@ -239,16 +245,49 @@ export async function handleThumbnail(
       return
     }
 
-    const mimeType = getMimeType(absPath)
+    // SVG files don't need resizing
+    if (ext === 'svg') {
+      res.writeHead(200, {
+        'Content-Type': 'image/svg+xml',
+        'Content-Length': stat.size,
+        'Cache-Control': 'public, max-age=86400',
+      })
+      createReadStream(absPath).pipe(res)
+      return
+    }
+
+    // Generate cache key from path and mtime
+    const cacheKey = crypto
+      .createHash('md5')
+      .update(`${absPath}:${stat.mtime.getTime()}`)
+      .digest('hex')
+    const cachePath = path.join(THUMBNAIL_CACHE_DIR, `${cacheKey}.webp`)
+
+    // Ensure cache directory exists
+    if (!existsSync(THUMBNAIL_CACHE_DIR)) {
+      await fs.mkdir(THUMBNAIL_CACHE_DIR, { recursive: true })
+    }
+
+    // Generate thumbnail if not cached
+    if (!existsSync(cachePath)) {
+      await sharp(absPath)
+        .resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, {
+          fit: 'cover',
+          position: 'center',
+        })
+        .webp({ quality: 80 })
+        .toFile(cachePath)
+    }
+
+    const cacheStat = await fs.stat(cachePath)
 
     res.writeHead(200, {
-      'Content-Type': mimeType,
-      'Content-Length': stat.size,
+      'Content-Type': 'image/webp',
+      'Content-Length': cacheStat.size,
       'Cache-Control': 'public, max-age=86400',
     })
 
-    const stream = createReadStream(absPath)
-    stream.pipe(res)
+    createReadStream(cachePath).pipe(res)
   } catch (err) {
     sendError(res, (err as Error).message, 500)
   }
