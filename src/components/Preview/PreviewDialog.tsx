@@ -23,12 +23,31 @@ export function PreviewDialog() {
       setTextError(null)
       return
     }
+
+    const abortController = new AbortController()
     setTextLoading(true)
     setTextError(null)
-    fetchTextContent(previewFile.path)
-      .then(setTextContent)
-      .catch((err) => setTextError(err.message))
-      .finally(() => setTextLoading(false))
+
+    fetchTextContent(previewFile.path, abortController.signal)
+      .then((content) => {
+        if (!abortController.signal.aborted) {
+          setTextContent(content)
+        }
+      })
+      .catch((err) => {
+        if (!abortController.signal.aborted) {
+          setTextError(err.message)
+        }
+      })
+      .finally(() => {
+        if (!abortController.signal.aborted) {
+          setTextLoading(false)
+        }
+      })
+
+    return () => {
+      abortController.abort()
+    }
   }, [previewFile, previewType])
 
   const handleDownload = () => {
