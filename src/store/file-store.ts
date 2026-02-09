@@ -214,7 +214,6 @@ const useFileStoreBase = create<FileStoreState>((set, get) => ({
 		set((state) => {
 			const currentPane = state.panes[resolvedPaneId]
 			return {
-				activePaneId: resolvedPaneId,
 				panes: {
 					...state.panes,
 					[resolvedPaneId]: {
