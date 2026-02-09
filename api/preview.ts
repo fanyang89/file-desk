@@ -1,3 +1,5 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+
 const DEMO_CONTENT: Record<string, string> = {
   'README.md': `# File Desk
 
@@ -50,6 +52,33 @@ TODO:
 [ ] Add drag and drop upload
 [ ] Add file search
 `,
+  'Dockerfile': `FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+EXPOSE 3000
+CMD ["npm", "start"]
+`,
+  'Makefile': `.PHONY: build test run clean
+
+build:
+	npm run build
+
+test:
+	npm test
+
+run:
+	npm run dev
+
+clean:
+	rm -rf dist node_modules
+`,
   'Documents/presentation.md': `# Q1 2026 Review
 
 ## Highlights
@@ -63,6 +92,17 @@ TODO:
 1. Mobile responsive design
 2. Cloud sync integration
 3. Collaborative editing
+`,
+  'Documents/budget.csv': `Category,Q1,Q2,Q3,Q4
+Engineering,50000,55000,60000,65000
+Marketing,20000,25000,30000,35000
+Operations,15000,15000,16000,17000
+Total,85000,95000,106000,117000
+`,
+  'Images/logo.svg': `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="10" fill="#4f46e5"/>
+  <text x="50" y="60" font-family="Arial" font-size="40" fill="white" text-anchor="middle">FD</text>
+</svg>
 `,
   'Projects/web-app/src/index.ts': `import { createRoot } from 'react-dom/client'
 import App from './App'
@@ -155,24 +195,26 @@ go 1.21
 `,
 }
 
-export default function handler(req: Request): Response {
-  const url = new URL(req.url)
-  const filePath = url.searchParams.get('path') || ''
-
+export default function handler(req: VercelRequest, res: VercelResponse) {
+  const filePath = (req.query.path as string) || ''
   const content = DEMO_CONTENT[filePath]
 
   if (content === undefined) {
-    return new Response('Preview not available for this file in demo mode', {
-      status: 200,
-      headers: { 'Content-Type': 'text/plain' },
-    })
+    res.setHeader('Content-Type', 'text/plain')
+    res.status(200).send('Preview not available for this file in demo mode')
+    return
   }
 
-  return new Response(content, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Content-Disposition': `inline; filename="${filePath.split('/').pop()}"`,
-    },
-  })
+  const fileName = filePath.split('/').pop() || 'file'
+  const ext = fileName.split('.').pop()?.toLowerCase()
+
+  // Set appropriate content type based on file extension
+  let contentType = 'text/plain; charset=utf-8'
+  if (ext === 'svg') {
+    contentType = 'image/svg+xml'
+  }
+
+  res.setHeader('Content-Type', contentType)
+  res.setHeader('Content-Disposition', `inline; filename="${fileName}"`)
+  res.status(200).send(content)
 }

@@ -1,3 +1,5 @@
+import type { VercelRequest, VercelResponse } from '@vercel/node'
+
 interface FileEntry {
   name: string
   path: string
@@ -16,15 +18,14 @@ const DEMO_FILES: Record<string, FileEntry[]> = {
     { name: 'README.md', path: 'README.md', isDirectory: false, size: 2048, modifiedAt: '2026-02-08T08:00:00Z', createdAt: '2026-01-01T00:00:00Z', extension: 'md' },
     { name: 'package.json', path: 'package.json', isDirectory: false, size: 1024, modifiedAt: '2026-02-07T12:00:00Z', createdAt: '2026-01-01T00:00:00Z', extension: 'json' },
     { name: 'notes.txt', path: 'notes.txt', isDirectory: false, size: 512, modifiedAt: '2026-02-06T18:00:00Z', createdAt: '2026-02-01T00:00:00Z', extension: 'txt' },
+    { name: 'Dockerfile', path: 'Dockerfile', isDirectory: false, size: 256, modifiedAt: '2026-02-05T10:00:00Z', createdAt: '2026-02-05T10:00:00Z', extension: '' },
+    { name: 'Makefile', path: 'Makefile', isDirectory: false, size: 512, modifiedAt: '2026-02-04T14:00:00Z', createdAt: '2026-02-04T14:00:00Z', extension: '' },
   ],
   'Documents': [
-    { name: 'report.pdf', path: 'Documents/report.pdf', isDirectory: false, size: 102400, modifiedAt: '2026-02-05T14:00:00Z', createdAt: '2026-02-01T00:00:00Z', extension: 'pdf' },
     { name: 'presentation.md', path: 'Documents/presentation.md', isDirectory: false, size: 4096, modifiedAt: '2026-02-04T10:00:00Z', createdAt: '2026-01-20T00:00:00Z', extension: 'md' },
     { name: 'budget.csv', path: 'Documents/budget.csv', isDirectory: false, size: 2048, modifiedAt: '2026-02-03T16:00:00Z', createdAt: '2026-01-15T00:00:00Z', extension: 'csv' },
   ],
   'Images': [
-    { name: 'photo1.jpg', path: 'Images/photo1.jpg', isDirectory: false, size: 2048000, modifiedAt: '2026-02-07T15:30:00Z', createdAt: '2026-02-07T15:30:00Z', extension: 'jpg' },
-    { name: 'screenshot.png', path: 'Images/screenshot.png', isDirectory: false, size: 512000, modifiedAt: '2026-02-06T12:00:00Z', createdAt: '2026-02-06T12:00:00Z', extension: 'png' },
     { name: 'logo.svg', path: 'Images/logo.svg', isDirectory: false, size: 4096, modifiedAt: '2026-02-01T09:00:00Z', createdAt: '2026-02-01T09:00:00Z', extension: 'svg' },
   ],
   'Projects': [
@@ -47,11 +48,8 @@ const DEMO_FILES: Record<string, FileEntry[]> = {
   ],
 }
 
-export default function handler(req: Request): Response {
-  const url = new URL(req.url)
-  const dirPath = url.searchParams.get('path') || ''
-
+export default function handler(req: VercelRequest, res: VercelResponse) {
+  const dirPath = (req.query.path as string) || ''
   const files = DEMO_FILES[dirPath] || []
-
-  return Response.json({ files, currentPath: dirPath })
+  res.status(200).json({ files, currentPath: dirPath })
 }
