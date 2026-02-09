@@ -1,19 +1,18 @@
-import { Sidebar } from "@/components/Sidebar/Sidebar";
-import { Toolbar } from "@/components/Toolbar/Toolbar";
-import { TabBar } from "@/components/TabBar/TabBar";
-import { FileList } from "@/components/FileList/FileList";
-import { PreviewDialog } from "@/components/Preview/PreviewDialog";
+import { Sidebar } from '@/components/Sidebar/Sidebar'
+import { PreviewDialog } from '@/components/Preview/PreviewDialog'
+import { ExplorerPane } from '@/components/Layout/ExplorerPane'
 
 export function Layout() {
 	return (
 		<div className="layout">
 			<Sidebar />
 			<div className="layout-main">
-				<Toolbar />
-				<TabBar />
-				<FileList />
+				<div className="explorer-split">
+					<ExplorerPane paneId="left" />
+					<ExplorerPane paneId="right" />
+				</div>
 			</div>
 			<PreviewDialog />
 		</div>
-	);
+	)
 }

@@ -18,10 +18,34 @@ input {
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
+}
+
+.explorer-split {
+	flex: 1;
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 12px;
+	padding: 0;
+	min-height: 0;
+}
+
+.explorer-pane {
+	min-width: 0;
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
 	border: 1px solid var(--gray-6);
 	border-radius: var(--radius-5);
 	background: var(--color-panel);
 	box-shadow: var(--shadow-2);
+}
+
+.explorer-pane.active {
+	border-color: var(--accent-a7);
+	box-shadow:
+		0 0 0 1px var(--accent-a6),
+		var(--shadow-2);
 }
 
 /* Sidebar */
@@ -294,9 +318,19 @@ input {
 		gap: 8px;
 	}
 
+	.explorer-split {
+		gap: 8px;
+	}
+
 	.path-segment {
 		font-size: 12px;
 		padding: 2px 6px;
+	}
+}
+
+@media (max-width: 1100px) {
+	.explorer-split {
+		grid-template-columns: minmax(0, 1fr);
 	}
 }
 

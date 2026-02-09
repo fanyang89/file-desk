@@ -1,35 +1,39 @@
-import { useEffect } from "react";
-import { Loader2, FolderOpen } from "lucide-react";
+import { useEffect } from 'react'
+import { Loader2, FolderOpen } from 'lucide-react'
 import {
 	useFileStore,
 	selectEntries,
 	selectLoading,
 	selectError,
 	selectCurrentPath,
-} from "@/store/file-store";
-import { ListView } from "./ListView";
-import { GridView } from "./GridView";
-import { PhotoView } from "./PhotoView";
-import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+	useExplorerPaneId,
+} from '@/store/file-store'
+import { ListView } from './ListView'
+import { GridView } from './GridView'
+import { PhotoView } from './PhotoView'
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
 
 export function FileList() {
-	const entries = useFileStore(selectEntries);
-	const loading = useFileStore(selectLoading);
-	const error = useFileStore(selectError);
-	const currentPath = useFileStore(selectCurrentPath);
-	const viewMode = useFileStore((s) => s.viewMode);
-	const navigate = useFileStore((s) => s.navigate);
-	const clearSelection = useFileStore((s) => s.clearSelection);
+	const entries = useFileStore(selectEntries)
+	const loading = useFileStore(selectLoading)
+	const error = useFileStore(selectError)
+	const currentPath = useFileStore(selectCurrentPath)
+	const viewMode = useFileStore((s) => s.viewMode)
+	const navigate = useFileStore((s) => s.navigate)
+	const clearSelection = useFileStore((s) => s.clearSelection)
+	const activePaneId = useFileStore((s) => s.activePaneId)
+	const paneId = useExplorerPaneId()
+	const isActivePane = paneId ? paneId === activePaneId : true
 
-	useKeyboardShortcuts();
+	useKeyboardShortcuts(isActivePane)
 
 	useEffect(() => {
-		navigate("");
-	}, [navigate]);
+		void navigate('')
+	}, [navigate])
 
 	const handleBackgroundClick = () => {
-		clearSelection();
-	};
+		clearSelection()
+	}
 
 	if (loading) {
 		return (
@@ -37,7 +41,7 @@ export function FileList() {
 				<Loader2 size={32} className="spinner" />
 				<p>Loading...</p>
 			</div>
-		);
+		)
 	}
 
 	if (error) {
@@ -45,7 +49,7 @@ export function FileList() {
 			<div className="file-list-empty" onClick={handleBackgroundClick}>
 				<p className="error-text">Error: {error}</p>
 			</div>
-		);
+		)
 	}
 
 	if (viewMode !== "photo" && entries.length === 0) {
@@ -54,7 +58,7 @@ export function FileList() {
 				<FolderOpen size={48} strokeWidth={1} />
 				<p>This folder is empty</p>
 			</div>
-		);
+		)
 	}
 
 	return (
@@ -67,5 +71,5 @@ export function FileList() {
 				<PhotoView path={currentPath} />
 			)}
 		</div>
-	);
+	)
 }

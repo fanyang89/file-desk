@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import { useFileStore, selectEntries } from "@/store/file-store";
+import { useEffect } from 'react'
+import { useFileStore, selectEntries } from '@/store/file-store'
 
-export function useKeyboardShortcuts() {
+export function useKeyboardShortcuts(enabled = true) {
 	const selectedPaths = useFileStore((s) => s.selectedPaths);
 	const entries = useFileStore(selectEntries);
 	const selectAll = useFileStore((s) => s.selectAll);
@@ -11,6 +11,8 @@ export function useKeyboardShortcuts() {
 	const previewFile = useFileStore((s) => s.previewFile);
 
 	useEffect(() => {
+		if (!enabled) return
+
 		const handler = (e: KeyboardEvent) => {
 			// Don't handle shortcuts when typing in inputs
 			const target = e.target as HTMLElement;
@@ -55,6 +57,7 @@ export function useKeyboardShortcuts() {
 		window.addEventListener("keydown", handler);
 		return () => window.removeEventListener("keydown", handler);
 	}, [
+		enabled,
 		selectedPaths,
 		entries,
 		selectAll,
@@ -62,5 +65,5 @@ export function useKeyboardShortcuts() {
 		navigate,
 		openPreview,
 		previewFile,
-	]);
+	])
 }
