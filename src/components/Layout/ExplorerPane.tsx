@@ -187,15 +187,15 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 		dragDepthRef.current = 0
 		setIsDragOver(false)
 		setActivePane(paneId)
-
-		const uploadItems = await collectDroppedUploadItems(event)
-		if (uploadItems.length === 0) {
-			showToast('No files found to upload', 'error')
-			return
-		}
-
 		const uploadPath = getPaneCurrentPath(paneId)
+
 		try {
+			const uploadItems = await collectDroppedUploadItems(event)
+			if (uploadItems.length === 0) {
+				showToast('No files found to upload', 'error')
+				return
+			}
+
 			await uploadFileItems(uploadPath, uploadItems)
 			await refreshPaneById(paneId)
 			showToast(

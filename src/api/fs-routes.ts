@@ -266,7 +266,7 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 
 		const busboy = Busboy({ headers: req.headers as Record<string, string> });
 		const uploads: string[] = [];
-		const writePromises: Array<Promise<void>> = [];
+		const writePromises: Array<Promise<Error | null>> = [];
 		let responded = false;
 
 		const respondError = (message: string, status = 500) => {
@@ -282,6 +282,11 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 				file: NodeJS.ReadableStream,
 				info: { filename: string },
 			) => {
+				if (responded) {
+					file.resume();
+					return;
+				}
+
 				let relativePath = "";
 				try {
 					relativePath = normalizeUploadRelativePath(info.filename);
@@ -307,7 +312,13 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 
 						file.pipe(writeStream);
 					});
-				})();
+				})()
+					.then(() => null)
+					.catch((err) => {
+						const uploadError = err as Error;
+						respondError(uploadError.message, 500);
+						return uploadError;
+					});
 
 				writePromises.push(writePromise);
 				uploads.push(relativePath);
@@ -316,15 +327,16 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 
 		busboy.on("finish", () => {
 			void (async () => {
-				if (responded) return;
-				try {
-					await Promise.all(writePromises);
-					if (responded) return;
-					responded = true;
-					sendJson(res, { success: true, files: uploads });
-				} catch (err) {
-					respondError((err as Error).message, 500);
+				const errors = await Promise.all(writePromises);
+				const firstError = errors.find((error) => error !== null);
+				if (firstError && !responded) {
+					respondError(firstError.message, 500);
+					return;
 				}
+
+				if (responded) return;
+				responded = true;
+				sendJson(res, { success: true, files: uploads });
 			})();
 		});
 
