@@ -1,10 +1,79 @@
 import { createContext, createElement, useContext, type ReactNode } from 'react'
 import { create } from 'zustand'
-import type { FileEntry, ViewMode, SortConfig, Tab } from '@/types'
+import type { DirPair, FileEntry, ViewMode, SortConfig, Tab } from '@/types'
 import { listFiles } from '@/lib/api-client'
 
 function generateId(): string {
 	return Math.random().toString(36).substring(2, 9)
+}
+
+function generateDirPairId(): string {
+	return `pair-${generateId()}`
+}
+
+const DIR_PAIRS_STORAGE_KEY = 'file-desk.dir-pairs.v1'
+
+interface DirPairStorageState {
+	dirPairs: DirPair[]
+	activeDirPairId: string | null
+}
+
+function canUseLocalStorage(): boolean {
+	return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined'
+}
+
+function isDirPairLike(value: unknown): value is DirPair {
+	if (!value || typeof value !== 'object') return false
+	const pair = value as Partial<DirPair>
+	return (
+		typeof pair.id === 'string' &&
+		typeof pair.name === 'string' &&
+		typeof pair.leftPath === 'string' &&
+		typeof pair.rightPath === 'string'
+	)
+}
+
+function readDirPairStorageState(): DirPairStorageState {
+	if (!canUseLocalStorage()) {
+		return { dirPairs: [], activeDirPairId: null }
+	}
+
+	try {
+		const rawValue = window.localStorage.getItem(DIR_PAIRS_STORAGE_KEY)
+		if (!rawValue) {
+			return { dirPairs: [], activeDirPairId: null }
+		}
+
+		const parsed = JSON.parse(rawValue) as Partial<DirPairStorageState>
+		const dirPairs = Array.isArray(parsed.dirPairs)
+			? parsed.dirPairs.filter(isDirPairLike)
+			: []
+		const activeDirPairId =
+			typeof parsed.activeDirPairId === 'string' &&
+			dirPairs.some((pair) => pair.id === parsed.activeDirPairId)
+				? parsed.activeDirPairId
+				: null
+
+		return { dirPairs, activeDirPairId }
+	} catch {
+		return { dirPairs: [], activeDirPairId: null }
+	}
+}
+
+function writeDirPairStorageState(
+	dirPairs: DirPair[],
+	activeDirPairId: string | null,
+): void {
+	if (!canUseLocalStorage()) return
+
+	try {
+		window.localStorage.setItem(
+			DIR_PAIRS_STORAGE_KEY,
+			JSON.stringify({ dirPairs, activeDirPairId }),
+		)
+	} catch {
+		// Ignore storage write failures
+	}
 }
 
 export type PaneId = 'left' | 'right'
@@ -25,6 +94,8 @@ export interface FileStore {
 	selectedPaths: Set<string>
 	previewFile: FileEntry | null
 	activePaneId: PaneId
+	dirPairs: DirPair[]
+	activeDirPairId: string | null
 
 	addTab: (path?: string) => void
 	closeTab: (id: string) => void
@@ -41,12 +112,18 @@ export interface FileStore {
 	openPreview: (entry: FileEntry) => void
 	closePreview: () => void
 	setActivePane: (paneId: PaneId) => void
+	createDirPair: (leftPath: string, rightPath: string) => void
+	switchDirPair: (id: string) => Promise<void>
+	renameDirPair: (id: string, name: string) => void
+	deleteDirPair: (id: string) => void
 }
 
 interface FileStoreState {
 	panes: Record<PaneId, PaneState>
 	activePaneId: PaneId
 	previewFile: FileEntry | null
+	dirPairs: DirPair[]
+	activeDirPairId: string | null
 
 	addTab: (path?: string, paneId?: PaneId) => void
 	closeTab: (id: string, paneId?: PaneId) => void
@@ -63,6 +140,10 @@ interface FileStoreState {
 	openPreview: (entry: FileEntry) => void
 	closePreview: () => void
 	setActivePane: (paneId: PaneId) => void
+	createDirPair: (leftPath: string, rightPath: string) => void
+	switchDirPair: (id: string) => Promise<void>
+	renameDirPair: (id: string, name: string) => void
+	deleteDirPair: (id: string) => void
 }
 
 function sortEntries(entries: FileEntry[], sort: SortConfig): FileEntry[] {
@@ -116,12 +197,18 @@ interface ScopedActions {
 	openPreview: (entry: FileEntry) => void
 	closePreview: () => void
 	setActivePane: (paneId: PaneId) => void
+	createDirPair: (leftPath: string, rightPath: string) => void
+	switchDirPair: (id: string) => Promise<void>
+	renameDirPair: (id: string, name: string) => void
+	deleteDirPair: (id: string) => void
 }
 
-function createInitialPaneState(): PaneState {
+function createInitialPaneState(initialPath = ''): PaneState {
 	const initialTabId = generateId()
 	return {
-		tabs: [{ id: initialTabId, path: '', entries: [], loading: false, error: null }],
+		tabs: [
+			{ id: initialTabId, path: initialPath, entries: [], loading: false, error: null },
+		],
 		activeTabId: initialTabId,
 		viewMode: 'list',
 		sort: { field: 'name', direction: 'asc' },
@@ -143,13 +230,23 @@ function findPaneIdByTabId(state: FileStoreState, tabId: string): PaneId | null 
 	return null
 }
 
+const initialDirPairStorageState = readDirPairStorageState()
+const initialActiveDirPair =
+	initialDirPairStorageState.activeDirPairId === null
+		? null
+		: initialDirPairStorageState.dirPairs.find(
+				(pair) => pair.id === initialDirPairStorageState.activeDirPairId,
+		  ) ?? null
+
 const useFileStoreBase = create<FileStoreState>((set, get) => ({
 	panes: {
-		left: createInitialPaneState(),
-		right: createInitialPaneState(),
+		left: createInitialPaneState(initialActiveDirPair?.leftPath ?? ''),
+		right: createInitialPaneState(initialActiveDirPair?.rightPath ?? ''),
 	},
 	activePaneId: 'left',
 	previewFile: null,
+	dirPairs: initialDirPairStorageState.dirPairs,
+	activeDirPairId: initialActiveDirPair?.id ?? null,
 
 	addTab: (path = '', paneId) => {
 		const resolvedPaneId = resolvePaneId(get(), paneId)
@@ -488,6 +585,73 @@ const useFileStoreBase = create<FileStoreState>((set, get) => ({
 	openPreview: (entry) => set({ previewFile: entry }),
 	closePreview: () => set({ previewFile: null }),
 	setActivePane: (paneId) => set({ activePaneId: paneId }),
+	createDirPair: (leftPath, rightPath) => {
+		const id = generateDirPairId()
+		const newDirPair: DirPair = {
+			id,
+			name: id,
+			leftPath,
+			rightPath,
+		}
+
+		set((state) => {
+			const dirPairs = [...state.dirPairs, newDirPair]
+			writeDirPairStorageState(dirPairs, newDirPair.id)
+			return {
+				dirPairs,
+				activeDirPairId: newDirPair.id,
+			}
+		})
+	},
+	switchDirPair: async (id) => {
+		const state = get()
+		const dirPair = state.dirPairs.find((pair) => pair.id === id)
+		if (!dirPair) return
+
+		set((currentState) => {
+			if (currentState.activeDirPairId === id) {
+				writeDirPairStorageState(currentState.dirPairs, currentState.activeDirPairId)
+				return currentState
+			}
+
+			writeDirPairStorageState(currentState.dirPairs, id)
+			return { activeDirPairId: id }
+		})
+
+		await Promise.all([
+			get().navigate(dirPair.leftPath, 'left'),
+			get().navigate(dirPair.rightPath, 'right'),
+		])
+	},
+	renameDirPair: (id, name) => {
+		const trimmedName = name.trim()
+		if (!trimmedName) return
+
+		set((state) => {
+			const existingDirPair = state.dirPairs.find((pair) => pair.id === id)
+			if (!existingDirPair) return state
+
+			const dirPairs = state.dirPairs.map((pair) =>
+				pair.id === id ? { ...pair, name: trimmedName } : pair,
+			)
+			writeDirPairStorageState(dirPairs, state.activeDirPairId)
+			return { dirPairs }
+		})
+	},
+	deleteDirPair: (id) => {
+		set((state) => {
+			const dirPairs = state.dirPairs.filter((pair) => pair.id !== id)
+			if (dirPairs.length === state.dirPairs.length) return state
+
+			const activeDirPairId =
+				state.activeDirPairId === id ? null : state.activeDirPairId
+			writeDirPairStorageState(dirPairs, activeDirPairId)
+			return {
+				dirPairs,
+				activeDirPairId,
+			}
+		})
+	},
 }))
 
 const ExplorerPaneContext = createContext<PaneId | null>(null)
@@ -526,6 +690,12 @@ function createScopedActions(paneId: PaneId): ScopedActions {
 		closePreview: () => useFileStoreBase.getState().closePreview(),
 		setActivePane: (nextPaneId) =>
 			useFileStoreBase.getState().setActivePane(nextPaneId),
+		createDirPair: (leftPath, rightPath) =>
+			useFileStoreBase.getState().createDirPair(leftPath, rightPath),
+		switchDirPair: (id) => useFileStoreBase.getState().switchDirPair(id),
+		renameDirPair: (id, name) =>
+			useFileStoreBase.getState().renameDirPair(id, name),
+		deleteDirPair: (id) => useFileStoreBase.getState().deleteDirPair(id),
 	}
 }
 
@@ -555,6 +725,8 @@ function getScopedState(state: FileStoreState, paneId: PaneId): FileStore {
 		selectedPaths: pane.selectedPaths,
 		previewFile: state.previewFile,
 		activePaneId: state.activePaneId,
+		dirPairs: state.dirPairs,
+		activeDirPairId: state.activeDirPairId,
 		...scopedActionMap[paneId],
 	}
 
@@ -580,6 +752,13 @@ export function useFileStore<T>(selector?: StoreSelector<T>) {
 			return scopedState as T
 		}
 		return selector(scopedState)
+	})
+}
+
+export function usePanePath(paneId: PaneId): string {
+	return useFileStoreBase((state) => {
+		const pane = state.panes[paneId]
+		return getActiveTab(pane.tabs, pane.activeTabId)?.path ?? ''
 	})
 }
 
