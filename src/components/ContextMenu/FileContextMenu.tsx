@@ -1,12 +1,29 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ContextMenu } from "radix-ui";
 import { Theme } from "@radix-ui/themes";
-import { Download, Pencil, Trash2, FolderOpen, Eye } from "lucide-react";
+import {
+	Copy,
+	Download,
+	Pencil,
+	Trash2,
+	FolderOpen,
+	Eye,
+	Scissors,
+} from "lucide-react";
 import type { FileEntry } from "@/types";
-import { useFileStore, selectCurrentPath } from "@/store/file-store";
+import {
+	useExplorerPaneId,
+	useFileStore,
+	selectCurrentPath,
+} from "@/store/file-store";
 import { getDownloadUrl } from "@/lib/api-client";
 import { RenameDialog } from "@/components/Dialogs/RenameDialog";
 import { DeleteConfirmDialog } from "@/components/Dialogs/DeleteConfirmDialog";
+import { useToast } from "@/components/Toast/useToast";
+import {
+	runCopyMoveTask,
+	resolveTransferNames,
+} from "@/lib/copy-move-task";
 
 interface FileContextMenuProps {
 	entry: FileEntry;
@@ -16,10 +33,41 @@ interface FileContextMenuProps {
 export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 	const { navigate, openPreview } = useFileStore();
 	const currentPath = useFileStore(selectCurrentPath);
+	const selectedPaths = useFileStore((s) => s.selectedPaths);
+	const entries = useFileStore((s) => s.entries);
+	const activePaneId = useFileStore((s) => s.activePaneId);
+	const loading = useFileStore((s) => s.loading);
+	const paneId = useExplorerPaneId();
+	const { showToast } = useToast();
 	const [renameOpen, setRenameOpen] = useState(false);
 	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [transferBusy, setTransferBusy] = useState(false);
 	const [renameTargetPath, setRenameTargetPath] = useState<string | null>(null);
 	const [deleteTargetPath, setDeleteTargetPath] = useState<string | null>(null);
+
+	const currentEntryPathSet = useMemo(
+		() => new Set(entries.map((item) => item.path)),
+		[entries],
+	);
+
+	const transferCandidatePaths = useMemo(() => {
+		if (selectedPaths.has(entry.path)) {
+			return selectedPaths;
+		}
+		return new Set([entry.path]);
+	}, [entry.path, selectedPaths]);
+
+	const transferSelection = useMemo(
+		() =>
+			resolveTransferNames({
+				sourcePath: currentPath,
+				candidatePaths: transferCandidatePaths,
+				currentEntryPathSet,
+			}),
+		[currentEntryPathSet, currentPath, transferCandidatePaths],
+	);
+
+	const canTransfer = !loading && !transferBusy && transferSelection.names.length > 0;
 
 	const handleDownload = () => {
 		const url = getDownloadUrl(entry.path);
@@ -37,6 +85,50 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 	const handleDeleteOpen = () => {
 		setDeleteTargetPath(currentPath);
 		setDeleteOpen(true);
+	};
+
+	const handleTransfer = async (operation: "copy" | "move") => {
+		if (transferBusy) return;
+
+		const { names, skippedOutsideCurrentDir, skippedMissingInCurrentDir } =
+			transferSelection;
+
+		if (names.length === 0) {
+			if (skippedMissingInCurrentDir > 0) {
+				showToast("Selected items are no longer in the current folder", "error");
+				return;
+			}
+			if (skippedOutsideCurrentDir > 0) {
+				showToast("Copy/Move only supports items in current folder", "error");
+				return;
+			}
+			showToast("No files selected", "error");
+			return;
+		}
+
+		if (skippedOutsideCurrentDir > 0) {
+			showToast(`Ignoring ${skippedOutsideCurrentDir} items outside current folder`);
+		}
+		if (skippedMissingInCurrentDir > 0) {
+			showToast(
+				`Ignoring ${skippedMissingInCurrentDir} items missing from current folder`,
+			);
+		}
+
+		const sourcePaneId = paneId ?? activePaneId;
+
+		setTransferBusy(true);
+		try {
+			await runCopyMoveTask({
+				operation,
+				sourcePath: currentPath,
+				sourcePaneId,
+				names,
+				showToast,
+			});
+		} finally {
+			setTransferBusy(false);
+		}
 	};
 
 	const handleRenameOpenChange = (open: boolean) => {
@@ -90,10 +182,26 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 										onSelect={handleDownload}
 									>
 										<Download size={14} />
-										<span>Download</span>
-									</ContextMenu.Item>
-								</>
-							)}
+									<span>Download</span>
+								</ContextMenu.Item>
+							</>
+						)}
+						<ContextMenu.Item
+							className="context-menu-item"
+							onSelect={() => void handleTransfer("copy")}
+							disabled={!canTransfer}
+						>
+							<Copy size={14} />
+							<span>Copy to other pane</span>
+						</ContextMenu.Item>
+						<ContextMenu.Item
+							className="context-menu-item"
+							onSelect={() => void handleTransfer("move")}
+							disabled={!canTransfer}
+						>
+							<Scissors size={14} />
+							<span>Move to other pane</span>
+						</ContextMenu.Item>
 							<ContextMenu.Separator className="context-menu-separator" />
 							<ContextMenu.Item
 								className="context-menu-item"

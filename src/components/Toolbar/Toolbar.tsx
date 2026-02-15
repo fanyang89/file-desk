@@ -21,14 +21,16 @@ import {
 	selectEntries,
 	selectLoading,
 	useExplorerPaneId,
-	type PaneId,
-	getPaneCurrentPath,
-	refreshPaneById,
 } from "@/store/file-store";
-import { createCopyMoveTask, getTask, uploadFiles } from "@/lib/api-client";
+import { uploadFiles } from "@/lib/api-client";
 import { useToast } from "@/components/Toast/useToast";
 import { NewFolderDialog } from "@/components/Dialogs/NewFolderDialog";
 import type { SortField, SortDirection, TaskOperation } from "@/types";
+import {
+	getDirectChildName,
+	runCopyMoveTask,
+	resolveTransferNames,
+} from "@/lib/copy-move-task";
 
 function normalizePathInput(input: string): string {
 	const normalized = input.replace(/\\/g, "/").trim();
@@ -39,35 +41,6 @@ function normalizePathInput(input: string): string {
 
 function formatPathForInput(path: string): string {
 	return path ? `/${path}` : "/";
-}
-
-function formatPathForToast(path: string): string {
-	return path ? `/${path}` : "/";
-}
-
-function getTargetPaneId(sourcePaneId: PaneId): PaneId {
-	return sourcePaneId === "left" ? "right" : "left";
-}
-
-function getDirectChildName(basePath: string, entryPath: string): string | null {
-	if (basePath === "") {
-		if (!entryPath || entryPath.includes("/")) return null;
-		return entryPath;
-	}
-
-	const prefix = `${basePath}/`;
-	if (!entryPath.startsWith(prefix)) return null;
-
-	const relativePath = entryPath.slice(prefix.length);
-	if (!relativePath || relativePath.includes("/")) return null;
-
-	return relativePath;
-}
-
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => {
-		setTimeout(resolve, ms);
-	});
 }
 
 export function Toolbar() {
@@ -173,26 +146,17 @@ export function Toolbar() {
 	const handleTransfer = async (operation: TaskOperation) => {
 		if (transferBusy) return;
 		const sourcePath = currentPath;
+		const {
+			names,
+			skippedOutsideCurrentDir,
+			skippedMissingInCurrentDir,
+		} = resolveTransferNames({
+			sourcePath,
+			candidatePaths: selectedPaths,
+			currentEntryPathSet,
+		});
 
-		const selectedNameSet = new Set<string>();
-		let skippedOutsideCurrentDir = 0;
-		let skippedMissingInCurrentDir = 0;
-
-		for (const selectedPath of selectedPaths) {
-			if (!currentEntryPathSet.has(selectedPath)) {
-				skippedMissingInCurrentDir += 1;
-				continue;
-			}
-
-			const directChildName = getDirectChildName(sourcePath, selectedPath);
-			if (!directChildName) {
-				skippedOutsideCurrentDir += 1;
-				continue;
-			}
-			selectedNameSet.add(directChildName);
-		}
-
-		if (selectedNameSet.size === 0) {
+		if (names.length === 0) {
 			if (skippedMissingInCurrentDir > 0) {
 				showToast("Selected items are no longer in the current folder", "error");
 				return;
@@ -215,63 +179,16 @@ export function Toolbar() {
 		}
 
 		const sourcePaneId = paneId ?? activePaneId;
-		const targetPaneId = getTargetPaneId(sourcePaneId);
-		const targetPath = getPaneCurrentPath(targetPaneId);
-
-		if (sourcePath === targetPath) {
-			showToast("Source and target directories cannot be the same", "error");
-			return;
-		}
-
-		const names = Array.from(selectedNameSet);
 
 		setTransferBusy(true);
 		try {
-			const { taskId } = await createCopyMoveTask(
+			await runCopyMoveTask({
 				operation,
 				sourcePath,
-				targetPath,
+				sourcePaneId,
 				names,
-			);
-
-			showToast(
-				`${operation === "copy" ? "Copy" : "Move"} task started (${names.length} items)`,
-			);
-
-			let status: "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted" = "queued";
-			let errorMessage = "";
-
-			while (status === "queued" || status === "running") {
-				const { task } = await getTask(taskId);
-				status = task.status;
-				errorMessage = task.error || "";
-				if (status === "queued" || status === "running") {
-					await sleep(1000);
-				}
-			}
-
-			await Promise.all([refresh(), refreshPaneById(targetPaneId)]);
-
-			if (status === "completed") {
-				showToast(
-					`${operation === "copy" ? "Copied" : "Moved"} ${names.length} items to ${formatPathForToast(targetPath)}`,
-				);
-				return;
-			}
-
-			if (status === "cancelled") {
-				showToast("Task cancelled", "error");
-				return;
-			}
-
-			if (status === "interrupted") {
-				showToast("Task interrupted by server restart", "error");
-				return;
-			}
-
-			showToast(errorMessage || "Task failed", "error");
-		} catch (err) {
-			showToast((err as Error).message, "error");
+				showToast,
+			});
 		} finally {
 			setTransferBusy(false);
 		}
