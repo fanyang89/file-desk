@@ -599,6 +599,16 @@ export function getPaneActiveTabId(paneId: PaneId): string {
 	return useFileStoreBase.getState().panes[paneId].activeTabId
 }
 
+export function getActivePaneId(): PaneId {
+	return useFileStoreBase.getState().activePaneId
+}
+
+export function getPaneActiveTabError(paneId: PaneId): string | null {
+	const state = useFileStoreBase.getState()
+	const pane = state.panes[paneId]
+	return getActiveTab(pane.tabs, pane.activeTabId)?.error ?? null
+}
+
 export async function refreshPaneById(paneId: PaneId): Promise<void> {
 	await useFileStoreBase.getState().refresh(paneId)
 }
