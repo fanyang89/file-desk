@@ -264,7 +264,10 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 		const dirPath = url.searchParams.get("path") || "";
 		const absDir = safePath(dirPath);
 
-		const busboy = Busboy({ headers: req.headers as Record<string, string> });
+		const busboy = Busboy({
+			headers: req.headers as Record<string, string>,
+			preservePath: true,
+		});
 		const uploads: string[] = [];
 		const writePromises: Array<Promise<Error | null>> = [];
 		let responded = false;
