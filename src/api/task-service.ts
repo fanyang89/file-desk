@@ -136,7 +136,9 @@ function sanitizeNames(names: string[]): string[] {
 
 async function ensureDatabaseReady(): Promise<void> {
 	await fs.mkdir(path.resolve(process.cwd(), ".data"), { recursive: true });
+}
 
+async function ensureTaskTable(): Promise<void> {
 	await prisma.$executeRawUnsafe(`
 		CREATE TABLE IF NOT EXISTS "Task" (
 			"id" TEXT NOT NULL PRIMARY KEY,
@@ -289,8 +291,9 @@ export async function startTaskRuntime(): Promise<void> {
 	if (runtime.starting) return runtime.starting;
 
 	runtime.starting = (async () => {
-		await prisma.$connect();
 		await ensureDatabaseReady();
+		await prisma.$connect();
+		await ensureTaskTable();
 		await prisma.task.updateMany({
 			where: {
 				status: { in: [TaskStatus.QUEUED, TaskStatus.RUNNING] },
