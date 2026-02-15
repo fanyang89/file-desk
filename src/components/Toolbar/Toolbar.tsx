@@ -1,9 +1,11 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
 	LayoutGrid,
 	List,
 	FolderPlus,
 	Upload,
+	Copy,
+	Scissors,
 	ArrowUpDown,
 	ArrowUp,
 	Home,
@@ -16,12 +18,18 @@ import { Theme } from "@radix-ui/themes";
 import {
 	useFileStore,
 	selectCurrentPath,
+	selectEntries,
 	selectLoading,
+	useExplorerPaneId,
+	type PaneId,
+	getPaneCurrentPath,
+	getPaneActiveTabId,
+	refreshPaneTabById,
 } from "@/store/file-store";
-import { uploadFiles } from "@/lib/api-client";
+import { createCopyMoveTask, getTask, uploadFiles } from "@/lib/api-client";
 import { useToast } from "@/components/Toast/useToast";
 import { NewFolderDialog } from "@/components/Dialogs/NewFolderDialog";
-import type { SortField, SortDirection } from "@/types";
+import type { SortField, SortDirection, TaskOperation } from "@/types";
 
 function normalizePathInput(input: string): string {
 	const normalized = input.replace(/\\/g, "/").trim();
@@ -34,23 +42,61 @@ function formatPathForInput(path: string): string {
 	return path ? `/${path}` : "/";
 }
 
+function formatPathForToast(path: string): string {
+	return path ? `/${path}` : "/";
+}
+
+function getTargetPaneId(sourcePaneId: PaneId): PaneId {
+	return sourcePaneId === "left" ? "right" : "left";
+}
+
+function getDirectChildName(basePath: string, entryPath: string): string | null {
+	if (basePath === "") {
+		if (!entryPath || entryPath.includes("/")) return null;
+		return entryPath;
+	}
+
+	const prefix = `${basePath}/`;
+	if (!entryPath.startsWith(prefix)) return null;
+
+	const relativePath = entryPath.slice(prefix.length);
+	if (!relativePath || relativePath.includes("/")) return null;
+
+	return relativePath;
+}
+
+function sleep(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
 export function Toolbar() {
+	const activeTabId = useFileStore((s) => s.activeTabId);
+	const activePaneId = useFileStore((s) => s.activePaneId);
 	const viewMode = useFileStore((s) => s.viewMode);
 	const setViewMode = useFileStore((s) => s.setViewMode);
 	const sort = useFileStore((s) => s.sort);
 	const setSort = useFileStore((s) => s.setSort);
 	const loading = useFileStore(selectLoading);
 	const currentPath = useFileStore(selectCurrentPath);
+	const entries = useFileStore(selectEntries);
+	const selectedPaths = useFileStore((s) => s.selectedPaths);
 	const navigate = useFileStore((s) => s.navigate);
-	const refresh = useFileStore((s) => s.refresh);
+	const refreshTab = useFileStore((s) => s.refreshTab);
+	const paneId = useExplorerPaneId();
 	const { showToast } = useToast();
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [newFolderOpen, setNewFolderOpen] = useState(false);
 	const [newFolderTargetPath, setNewFolderTargetPath] = useState<string | null>(
 		null,
 	);
+	const [newFolderTargetTabId, setNewFolderTargetTabId] = useState<
+		string | null
+	>(null);
 	const [isEditingPath, setIsEditingPath] = useState(false);
 	const [pathInput, setPathInput] = useState("");
+	const [transferBusy, setTransferBusy] = useState(false);
 	const parentPath = currentPath
 		.split("/")
 		.filter(Boolean)
@@ -58,15 +104,20 @@ export function Toolbar() {
 		.join("/");
 	const canGoUp = currentPath !== "" && !loading;
 	const segments = currentPath ? currentPath.split("/").filter(Boolean) : [];
+	const currentEntryPathSet = useMemo(
+		() => new Set(entries.map((entry) => entry.path)),
+		[entries],
+	);
 
 	const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = e.target.files;
 		if (!files || files.length === 0) return;
+		const uploadTabId = activeTabId;
 		const uploadPath = currentPath;
 		try {
 			await uploadFiles(uploadPath, files);
 			showToast("Files uploaded successfully");
-			await refresh();
+			await refreshTab(uploadTabId);
 		} catch (err) {
 			showToast((err as Error).message, "error");
 		}
@@ -81,6 +132,7 @@ export function Toolbar() {
 
 	const handleNewFolderOpen = () => {
 		setNewFolderTargetPath(currentPath);
+		setNewFolderTargetTabId(activeTabId);
 		setNewFolderOpen(true);
 	};
 
@@ -88,6 +140,7 @@ export function Toolbar() {
 		setNewFolderOpen(open);
 		if (!open) {
 			setNewFolderTargetPath(null);
+			setNewFolderTargetTabId(null);
 		}
 	};
 
@@ -125,176 +178,326 @@ export function Toolbar() {
 		await navigate(parentPath);
 	};
 
+	const handleTransfer = async (operation: TaskOperation) => {
+		if (transferBusy) return;
+		const sourcePath = currentPath;
+
+		const selectedNameSet = new Set<string>();
+		let skippedOutsideCurrentDir = 0;
+		let skippedMissingInCurrentDir = 0;
+
+		for (const selectedPath of selectedPaths) {
+			if (!currentEntryPathSet.has(selectedPath)) {
+				skippedMissingInCurrentDir += 1;
+				continue;
+			}
+
+			const directChildName = getDirectChildName(sourcePath, selectedPath);
+			if (!directChildName) {
+				skippedOutsideCurrentDir += 1;
+				continue;
+			}
+			selectedNameSet.add(directChildName);
+		}
+
+		if (selectedNameSet.size === 0) {
+			if (skippedMissingInCurrentDir > 0) {
+				showToast("Selected items are no longer in the current folder", "error");
+				return;
+			}
+			if (skippedOutsideCurrentDir > 0) {
+				showToast("Copy/Move only supports items in current folder", "error");
+				return;
+			}
+			showToast("No files selected", "error");
+			return;
+		}
+
+		if (skippedOutsideCurrentDir > 0) {
+			showToast(`Ignoring ${skippedOutsideCurrentDir} items outside current folder`);
+		}
+		if (skippedMissingInCurrentDir > 0) {
+			showToast(
+				`Ignoring ${skippedMissingInCurrentDir} items missing from current folder`,
+			);
+		}
+
+		const sourcePaneId = paneId ?? activePaneId;
+		const targetPaneId = getTargetPaneId(sourcePaneId);
+		const targetPath = getPaneCurrentPath(targetPaneId);
+		const targetTabId = getPaneActiveTabId(targetPaneId);
+
+		if (sourcePath === targetPath) {
+			showToast("Source and target directories cannot be the same", "error");
+			return;
+		}
+
+		const names = Array.from(selectedNameSet);
+		const transferTabId = activeTabId;
+
+		setTransferBusy(true);
+		try {
+			const { taskId } = await createCopyMoveTask(
+				operation,
+				sourcePath,
+				targetPath,
+				names,
+			);
+
+			showToast(
+				`${operation === "copy" ? "Copy" : "Move"} task started (${names.length} items)`,
+			);
+
+			let status: "queued" | "running" | "completed" | "failed" | "cancelled" | "interrupted" = "queued";
+			let errorMessage = "";
+
+			while (status === "queued" || status === "running") {
+				const { task } = await getTask(taskId);
+				status = task.status;
+				errorMessage = task.error || "";
+				if (status === "queued" || status === "running") {
+					await sleep(1000);
+				}
+			}
+
+			await Promise.all([
+				refreshTab(transferTabId),
+				refreshPaneTabById(targetPaneId, targetTabId),
+			]);
+
+			if (status === "completed") {
+				showToast(
+					`${operation === "copy" ? "Copied" : "Moved"} ${names.length} items to ${formatPathForToast(targetPath)}`,
+				);
+				return;
+			}
+
+			if (status === "cancelled") {
+				showToast("Task cancelled", "error");
+				return;
+			}
+
+			if (status === "interrupted") {
+				showToast("Task interrupted by server restart", "error");
+				return;
+			}
+
+			showToast(errorMessage || "Task failed", "error");
+		} catch (err) {
+			showToast((err as Error).message, "error");
+		} finally {
+			setTransferBusy(false);
+		}
+	};
+
+	const hasTransferSelection = useMemo(() => {
+		for (const selectedPath of selectedPaths) {
+			if (!currentEntryPathSet.has(selectedPath)) continue;
+			if (getDirectChildName(currentPath, selectedPath)) {
+				return true;
+			}
+		}
+		return false;
+	}, [currentEntryPathSet, currentPath, selectedPaths]);
+
+	const canTransfer = !loading && !transferBusy && hasTransferSelection;
+
 	return (
 		<div className="toolbar">
-			<div className="toolbar-nav">
-				<button
-					className="toolbar-btn"
-					onClick={handleGoUp}
-					title="Go up one level"
-					aria-label="Go up one level"
-					disabled={!canGoUp}
-				>
-					<ArrowUp size={18} />
-				</button>
-				<div
-					className={`path-bar ${isEditingPath ? "editing" : ""}`}
-					onClick={handlePathBarClick}
-				>
-					{isEditingPath ? (
-						<form className="path-form" onSubmit={handlePathSubmit}>
-							<input
-								className="path-input"
-								type="text"
-								value={pathInput}
-								onChange={(e) => setPathInput(e.target.value)}
-								onBlur={handlePathBlur}
-								onKeyDown={handlePathKeyDown}
-								spellCheck={false}
-								autoComplete="off"
-								aria-label="Path"
-								title="Enter path and press Enter"
-								disabled={loading}
-								autoFocus
-							/>
-						</form>
-					) : (
-						<>
-							<div className="path-breadcrumbs">
+			<div className="toolbar-top">
+				<div className="toolbar-nav">
+					<button
+						className="toolbar-btn"
+						onClick={handleGoUp}
+						title="Go up one level"
+						aria-label="Go up one level"
+						disabled={!canGoUp}
+					>
+						<ArrowUp size={18} />
+					</button>
+					<div
+						className={`path-bar ${isEditingPath ? "editing" : ""}`}
+						onClick={handlePathBarClick}
+					>
+						{isEditingPath ? (
+							<form className="path-form" onSubmit={handlePathSubmit}>
+								<input
+									className="path-input"
+									type="text"
+									value={pathInput}
+									onChange={(e) => setPathInput(e.target.value)}
+									onBlur={handlePathBlur}
+									onKeyDown={handlePathKeyDown}
+									spellCheck={false}
+									autoComplete="off"
+									aria-label="Path"
+									title="Enter path and press Enter"
+									disabled={loading}
+									autoFocus
+								/>
+							</form>
+						) : (
+							<>
+								<div className="path-breadcrumbs">
+									<button
+										className="path-segment path-home"
+										onClick={() => navigate("")}
+										title="Root"
+										disabled={loading}
+									>
+										<Home size={14} />
+									</button>
+									{segments.map((segment, i) => {
+										const path = segments.slice(0, i + 1).join("/");
+										return (
+											<span key={path} className="path-segment-wrap">
+												<ChevronRight size={14} className="path-separator" />
+												<button
+													className="path-segment"
+													onClick={() => navigate(path)}
+													title={path}
+													disabled={loading}
+												>
+													{segment}
+												</button>
+											</span>
+										);
+									})}
+								</div>
 								<button
-									className="path-segment path-home"
-									onClick={() => navigate("")}
-									title="Root"
+									className="path-edit-btn"
+									onClick={handlePathEdit}
+									title="Edit path"
+									aria-label="Edit path"
 									disabled={loading}
 								>
-									<Home size={14} />
+									<Pencil size={14} />
 								</button>
-								{segments.map((segment, i) => {
-									const path = segments.slice(0, i + 1).join("/");
-									return (
-										<span key={path} className="path-segment-wrap">
-											<ChevronRight size={14} className="path-separator" />
-											<button
-												className="path-segment"
-												onClick={() => navigate(path)}
-												title={path}
-												disabled={loading}
-											>
-												{segment}
-											</button>
-										</span>
-									);
-								})}
-							</div>
-							<button
-								className="path-edit-btn"
-								onClick={handlePathEdit}
-								title="Edit path"
-								aria-label="Edit path"
-								disabled={loading}
-							>
-								<Pencil size={14} />
-							</button>
-						</>
-					)}
+							</>
+						)}
+					</div>
 				</div>
 			</div>
-			<div className="toolbar-actions">
-				<button
-					className="toolbar-btn"
-					onClick={handleNewFolderOpen}
-					title="New Folder"
-				>
-					<FolderPlus size={18} />
-				</button>
 
-				<button
-					className="toolbar-btn"
-					onClick={() => fileInputRef.current?.click()}
-					title="Upload"
-				>
-					<Upload size={18} />
-				</button>
-				<input
-					ref={fileInputRef}
-					type="file"
-					multiple
-					onChange={handleUpload}
-					style={{ display: "none" }}
-				/>
+			<div className="toolbar-bottom">
+				<div className="toolbar-actions toolbar-actions-primary">
+					<button
+						className="toolbar-btn"
+						onClick={handleNewFolderOpen}
+						title="New Folder"
+					>
+						<FolderPlus size={18} />
+					</button>
 
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger asChild>
-						<button className="toolbar-btn" title="Sort">
-							<ArrowUpDown size={18} />
-						</button>
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Portal>
-						<Theme
-							appearance="light"
-							accentColor="indigo"
-							grayColor="slate"
-							panelBackground="solid"
-							radius="large"
-							scaling="100%"
+					<button
+						className="toolbar-btn"
+						onClick={() => fileInputRef.current?.click()}
+						title="Upload"
+					>
+						<Upload size={18} />
+					</button>
+					<input
+						ref={fileInputRef}
+						type="file"
+						multiple
+						onChange={handleUpload}
+						style={{ display: "none" }}
+					/>
+
+					<button
+						className="toolbar-btn"
+						onClick={() => handleTransfer("copy")}
+						title="Copy selected to other pane"
+						disabled={!canTransfer}
+					>
+						<Copy size={18} />
+					</button>
+
+					<button
+						className="toolbar-btn"
+						onClick={() => handleTransfer("move")}
+						title="Move selected to other pane"
+						disabled={!canTransfer}
+					>
+						<Scissors size={18} />
+					</button>
+				</div>
+
+				<div className="toolbar-actions toolbar-actions-secondary">
+					<DropdownMenu.Root>
+						<DropdownMenu.Trigger asChild>
+							<button className="toolbar-btn" title="Sort">
+								<ArrowUpDown size={18} />
+							</button>
+						</DropdownMenu.Trigger>
+						<DropdownMenu.Portal>
+							<Theme
+								appearance="light"
+								accentColor="indigo"
+								grayColor="slate"
+								panelBackground="solid"
+								radius="large"
+								scaling="100%"
+							>
+								<DropdownMenu.Content className="dropdown-content" sideOffset={5}>
+									<DropdownMenu.Item
+										className="dropdown-item"
+										onSelect={() => handleSort("name")}
+									>
+										Name{" "}
+										{sort.field === "name" &&
+											(sort.direction === "asc" ? "↑" : "↓")}
+									</DropdownMenu.Item>
+									<DropdownMenu.Item
+										className="dropdown-item"
+										onSelect={() => handleSort("size")}
+									>
+										Size{" "}
+										{sort.field === "size" &&
+											(sort.direction === "asc" ? "↑" : "↓")}
+									</DropdownMenu.Item>
+									<DropdownMenu.Item
+										className="dropdown-item"
+										onSelect={() => handleSort("modifiedAt")}
+									>
+										Modified{" "}
+										{sort.field === "modifiedAt" &&
+											(sort.direction === "asc" ? "↑" : "↓")}
+									</DropdownMenu.Item>
+								</DropdownMenu.Content>
+							</Theme>
+						</DropdownMenu.Portal>
+					</DropdownMenu.Root>
+
+					<div className="view-toggle">
+						<button
+							className={`toolbar-btn ${viewMode === "list" ? "active" : ""}`}
+							onClick={() => setViewMode("list")}
+							title="List view"
 						>
-							<DropdownMenu.Content className="dropdown-content" sideOffset={5}>
-								<DropdownMenu.Item
-									className="dropdown-item"
-									onSelect={() => handleSort("name")}
-								>
-									Name{" "}
-									{sort.field === "name" &&
-										(sort.direction === "asc" ? "↑" : "↓")}
-								</DropdownMenu.Item>
-								<DropdownMenu.Item
-									className="dropdown-item"
-									onSelect={() => handleSort("size")}
-								>
-									Size{" "}
-									{sort.field === "size" &&
-										(sort.direction === "asc" ? "↑" : "↓")}
-								</DropdownMenu.Item>
-								<DropdownMenu.Item
-									className="dropdown-item"
-									onSelect={() => handleSort("modifiedAt")}
-								>
-									Modified{" "}
-									{sort.field === "modifiedAt" &&
-										(sort.direction === "asc" ? "↑" : "↓")}
-								</DropdownMenu.Item>
-							</DropdownMenu.Content>
-						</Theme>
-					</DropdownMenu.Portal>
-				</DropdownMenu.Root>
-
-				<div className="view-toggle">
-					<button
-						className={`toolbar-btn ${viewMode === "list" ? "active" : ""}`}
-						onClick={() => setViewMode("list")}
-						title="List view"
-					>
-						<List size={18} />
-					</button>
-					<button
-						className={`toolbar-btn ${viewMode === "grid" ? "active" : ""}`}
-						onClick={() => setViewMode("grid")}
-						title="Grid view"
-					>
-						<LayoutGrid size={18} />
-					</button>
-					<button
-						className={`toolbar-btn ${viewMode === "photo" ? "active" : ""}`}
-						onClick={() => setViewMode("photo")}
-						title="Photo view"
-					>
-						<Image size={18} />
-					</button>
+							<List size={18} />
+						</button>
+						<button
+							className={`toolbar-btn ${viewMode === "grid" ? "active" : ""}`}
+							onClick={() => setViewMode("grid")}
+							title="Grid view"
+						>
+							<LayoutGrid size={18} />
+						</button>
+						<button
+							className={`toolbar-btn ${viewMode === "photo" ? "active" : ""}`}
+							onClick={() => setViewMode("photo")}
+							title="Photo view"
+						>
+							<Image size={18} />
+						</button>
+					</div>
 				</div>
 			</div>
 
 			<NewFolderDialog
 				targetPath={newFolderTargetPath}
+				targetTabId={newFolderTargetTabId}
 				open={newFolderOpen}
 				onOpenChange={handleNewFolderOpenChange}
 			/>
