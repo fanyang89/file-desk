@@ -258,44 +258,7 @@ async function executeTask(taskId: string): Promise<void> {
 			shouldCancel: () => isCancellationRequested(task.id),
 		});
 
-		const latestTaskState = await prisma.task.findUnique({
-			where: { id: task.id },
-			select: {
-				status: true,
-				cancelRequested: true,
-				processedItems: true,
-				totalItems: true,
-			},
-		});
-
-		if (!latestTaskState || latestTaskState.status !== TaskStatus.RUNNING) {
-			return;
-		}
-
-		const expectedTotalItems =
-			latestTaskState.totalItems > 0
-				? latestTaskState.totalItems
-				: names.length;
-		const allItemsProcessed =
-			latestTaskState.processedItems >= expectedTotalItems;
-
-		if (latestTaskState.cancelRequested && !allItemsProcessed) {
-			await prisma.task.updateMany({
-				where: {
-					id: task.id,
-					status: TaskStatus.RUNNING,
-				},
-				data: {
-					status: TaskStatus.CANCELLED,
-					finishedAt: new Date(),
-					currentItem: null,
-					error: null,
-				},
-			});
-			return;
-		}
-
-		await prisma.task.updateMany({
+		const completionUpdate = await prisma.task.updateMany({
 			where: {
 				id: task.id,
 				status: TaskStatus.RUNNING,
@@ -310,6 +273,10 @@ async function executeTask(taskId: string): Promise<void> {
 				cancelRequested: false,
 			},
 		});
+
+		if (completionUpdate.count === 0) {
+			return;
+		}
 	} catch (err) {
 		if (err instanceof TaskCancelledError) {
 			await prisma.task.update({
@@ -408,17 +375,17 @@ export async function listTasks(limit = 50): Promise<TaskDto[]> {
 		take: limit,
 	});
 
-	const activeTasks = await prisma.task.findMany({
-		where: { status: { in: [TaskStatus.RUNNING, TaskStatus.QUEUED] } },
+	const runningTasks = await prisma.task.findMany({
+		where: { status: TaskStatus.RUNNING },
 		orderBy: { createdAt: "asc" },
 	});
 
 	const knownTaskIds = new Set(tasks.map((task) => task.id));
-	const missingActiveTasks = activeTasks.filter(
+	const missingRunningTasks = runningTasks.filter(
 		(task) => !knownTaskIds.has(task.id),
 	);
 
-	return [...missingActiveTasks, ...tasks].map(toTaskDto);
+	return [...missingRunningTasks, ...tasks].map(toTaskDto);
 }
 
 export async function cancelTask(taskId: string): Promise<boolean> {
