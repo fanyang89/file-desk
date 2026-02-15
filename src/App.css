@@ -120,6 +120,284 @@ input {
 	overflow: auto;
 }
 
+.task-panel {
+	margin-top: auto;
+	border-top: 1px solid var(--gray-a4);
+	display: flex;
+	flex-direction: column;
+	min-height: 200px;
+	max-height: 52vh;
+	background: color-mix(in oklab, var(--color-panel) 94%, var(--gray-a2));
+}
+
+.task-panel-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 10px 12px;
+	border-bottom: 1px solid var(--gray-a4);
+	gap: 8px;
+}
+
+.task-filter-row {
+	display: flex;
+	gap: 6px;
+	padding: 8px 10px;
+	border-bottom: 1px solid var(--gray-a4);
+	overflow-x: auto;
+}
+
+.task-filter-btn {
+	border: 1px solid var(--gray-a5);
+	background: var(--gray-a2);
+	color: var(--gray-11);
+	border-radius: 999px;
+	padding: 3px 10px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	cursor: pointer;
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease,
+		color 0.15s ease;
+}
+
+.task-filter-btn:hover {
+	background: var(--gray-a3);
+	border-color: var(--gray-a6);
+	color: var(--gray-12);
+}
+
+.task-filter-btn.active {
+	background: var(--accent-a4);
+	border-color: var(--accent-a7);
+	color: var(--accent-11);
+}
+
+.task-panel-title {
+	margin: 0;
+	font-size: 13px;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-weight: 700;
+	color: var(--gray-11);
+}
+
+.task-panel-count {
+	font-size: 12px;
+	color: var(--gray-10);
+	padding: 2px 8px;
+	border-radius: 999px;
+	background: var(--gray-a3);
+	border: 1px solid var(--gray-a5);
+	flex-shrink: 0;
+}
+
+.task-panel-scroll {
+	padding: 10px;
+	overflow: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.task-panel-empty {
+	padding: 14px 12px;
+	font-size: 13px;
+	color: var(--gray-10);
+}
+
+.task-panel-error {
+	color: var(--red-10);
+}
+
+.task-section {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.task-section-title {
+	font-size: 11px;
+	font-weight: 700;
+	color: var(--gray-10);
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	padding: 0 2px;
+}
+
+.task-item {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	padding: 10px;
+	border-radius: var(--radius-3);
+	border: 1px solid var(--gray-a5);
+	background: var(--color-panel-solid);
+	box-shadow: var(--shadow-1);
+}
+
+.task-item.clickable {
+	cursor: pointer;
+	transition:
+		border-color 0.15s ease,
+		background-color 0.15s ease,
+		box-shadow 0.15s ease;
+}
+
+.task-item.clickable:hover {
+	border-color: var(--accent-a7);
+	background: color-mix(in oklab, var(--color-panel) 90%, var(--accent-a3));
+	box-shadow: var(--shadow-2);
+}
+
+.task-item.clickable:focus-visible {
+	outline: 2px solid var(--accent-a8);
+	outline-offset: 1px;
+}
+
+.task-item-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+
+.task-status {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--gray-11);
+}
+
+.task-operation {
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--accent-10);
+}
+
+.task-paths {
+	font-size: 12px;
+	color: var(--gray-10);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.task-progress-row {
+	display: flex;
+	justify-content: space-between;
+	font-size: 11px;
+	color: var(--gray-10);
+}
+
+.task-progress-bar {
+	height: 6px;
+	border-radius: 999px;
+	overflow: hidden;
+	background: var(--gray-a4);
+}
+
+.task-progress-value {
+	height: 100%;
+	background: linear-gradient(90deg, var(--accent-8), var(--accent-10));
+	transition: width 0.2s ease;
+}
+
+.task-current-item {
+	font-size: 12px;
+	color: var(--gray-11);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.task-error {
+	font-size: 12px;
+	color: var(--red-10);
+	line-height: 1.35;
+}
+
+.task-cancel-btn {
+	align-self: flex-start;
+	border: 1px solid var(--red-a6);
+	background: var(--red-a3);
+	color: var(--red-11);
+	border-radius: var(--radius-2);
+	padding: 4px 8px;
+	font-size: 12px;
+	cursor: pointer;
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease,
+		color 0.15s ease;
+}
+
+.task-cancel-btn:hover {
+	background: var(--red-a4);
+	border-color: var(--red-a7);
+}
+
+.task-cancel-btn:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
+.task-spin {
+	animation: spin 1s linear infinite;
+}
+
+.task-item.status-completed .task-status {
+	color: var(--green-11);
+}
+
+.task-item.status-failed .task-status,
+.task-item.status-cancelled .task-status,
+.task-item.status-interrupted .task-status {
+	color: var(--red-11);
+}
+
+.task-jump-paths {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	margin-bottom: 16px;
+	padding: 10px;
+	border: 1px solid var(--gray-a5);
+	border-radius: var(--radius-3);
+	background: var(--gray-a2);
+}
+
+.task-jump-item {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+	font-size: 13px;
+	min-width: 0;
+}
+
+.task-jump-label {
+	color: var(--gray-10);
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	font-size: 11px;
+	flex-shrink: 0;
+}
+
+.task-jump-value {
+	color: var(--gray-12);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .sidebar-item {
 	display: flex;
 	align-items: stretch;
@@ -538,6 +816,11 @@ input {
 	.sidebar-item-actions {
 		opacity: 1;
 		pointer-events: auto;
+	}
+
+	.task-panel {
+		min-height: 150px;
+		max-height: 32vh;
 	}
 
 	.layout-main {

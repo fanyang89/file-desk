@@ -589,6 +589,16 @@ export function usePanePath(paneId: PaneId): string {
 	return useFileStoreBase((state) => state.panes[paneId].path)
 }
 
+export function getPaneCurrentPath(paneId: PaneId): string {
+	const state = useFileStoreBase.getState()
+	const pane = state.panes[paneId]
+	return getActiveTab(pane.tabs, pane.activeTabId)?.path ?? ''
+}
+
+export async function refreshPaneById(paneId: PaneId): Promise<void> {
+	await useFileStoreBase.getState().refresh(paneId)
+}
+
 // Selectors for derived state
 export const selectCurrentPath = (state: FileStore): string =>
 	state.path

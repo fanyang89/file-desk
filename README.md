@@ -5,6 +5,7 @@ File Desk is a browser-based file manager with a Google Drive-like interface. It
 ## What This Project Is For
 
 - Manage files and folders visually: create, rename, delete, upload, and download
+- Transfer files between panes with copy/move background tasks
 - Work with list/grid views, sorting, multi-select, context menus, and keyboard shortcuts
 - Help developers browse and organize repository files faster during day-to-day work
 
@@ -16,6 +17,7 @@ Note: The file API is currently provided by Vite middleware, so this mode is bes
 
 ```bash
 bun install
+bun run prisma:generate
 bun run dev --host 0.0.0.0 --port 5173
 ```
 

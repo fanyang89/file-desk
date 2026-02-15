@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:../.data/file-desk.db"
+}
+
+enum TaskType {
+  COPY_MOVE
+}
+
+enum TaskOperation {
+  COPY
+  MOVE
+}
+
+enum TaskStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+  INTERRUPTED
+}
+
+model Task {
+  id              String        @id @default(cuid())
+  type            TaskType      @default(COPY_MOVE)
+  operation       TaskOperation
+  sourcePath      String
+  targetPath      String
+  namesJson       String
+  status          TaskStatus    @default(QUEUED)
+  processedItems  Int           @default(0)
+  totalItems      Int           @default(0)
+  currentItem     String?
+  error           String?
+  cancelRequested Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status, createdAt])
+  @@index([createdAt])
+}

@@ -9,9 +9,12 @@
     "lint": "eslint .",
     "format": "bunx biome format --write .",
     "preview": "vite preview",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
     "pr:create": "bash scripts/codex-pr.sh"
   },
   "dependencies": {
+    "@prisma/client": "^6.17.1",
     "@monaco-editor/react": "^4.7.0",
     "@radix-ui/themes": "^3.3.0",
     "busboy": "^1.6.0",
@@ -34,6 +37,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "prisma": "^6.17.1",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4"

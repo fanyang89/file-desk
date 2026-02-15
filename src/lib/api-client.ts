@@ -1,9 +1,13 @@
-import type { FileEntry } from "@/types";
+import type { BackgroundTask, FileEntry, TaskOperation } from "@/types";
 import {
 	mockListFiles,
 	mockCreateFolder,
 	mockRenameEntry,
 	mockDeleteEntry,
+	mockCreateCopyMoveTask,
+	mockGetTask,
+	mockListTasks,
+	mockCancelTask,
 	mockUploadFiles,
 	getMockDownloadUrl,
 	getMockPreviewUrl,
@@ -23,6 +27,19 @@ export interface ListFilesOptions {
 
 interface SuccessResponse {
 	success: boolean;
+}
+
+interface CreateTaskResponse {
+	taskId: string;
+	task: BackgroundTask;
+}
+
+interface GetTaskResponse {
+	task: BackgroundTask;
+}
+
+interface ListTasksResponse {
+	tasks: BackgroundTask[];
 }
 
 function isVercelDeploymentHost(): boolean {
@@ -216,6 +233,58 @@ export async function deleteEntry(
 		fallbackReason: "DELETE /api/delete",
 		errorFallback: "Failed to delete",
 		mockValue: () => mockDeleteEntry(path, name),
+	});
+}
+
+export async function createCopyMoveTask(
+	operation: TaskOperation,
+	sourcePath: string,
+	targetPath: string,
+	names: string[],
+): Promise<CreateTaskResponse> {
+	return requestJsonWithMock({
+		url: "/api/tasks/copy-move",
+		init: {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ operation, sourcePath, targetPath, names }),
+		},
+		fallbackReason: "POST /api/tasks/copy-move",
+		errorFallback: "Failed to create task",
+		mockValue: () =>
+			mockCreateCopyMoveTask({ operation, sourcePath, targetPath, names }),
+	});
+}
+
+export async function getTask(taskId: string): Promise<GetTaskResponse> {
+	return requestJsonWithMock({
+		url: `/api/tasks/${encodeURIComponent(taskId)}`,
+		fallbackReason: "GET /api/tasks/:id",
+		errorFallback: "Failed to get task",
+		mockValue: () => mockGetTask(taskId),
+	});
+}
+
+export async function listTasks(limit = 50): Promise<ListTasksResponse> {
+	const query = new URLSearchParams({ limit: String(limit) });
+	return requestJsonWithMock({
+		url: `/api/tasks?${query.toString()}`,
+		fallbackReason: "GET /api/tasks",
+		errorFallback: "Failed to list tasks",
+		mockValue: () => mockListTasks(limit),
+	});
+}
+
+export async function cancelTask(taskId: string): Promise<SuccessResponse> {
+	return requestJsonWithMock({
+		url: `/api/tasks/${encodeURIComponent(taskId)}/cancel`,
+		init: {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+		},
+		fallbackReason: "POST /api/tasks/:id/cancel",
+		errorFallback: "Failed to cancel task",
+		mockValue: () => mockCancelTask(taskId),
 	});
 }
 
