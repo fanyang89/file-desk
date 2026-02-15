@@ -26,3 +26,10 @@ export interface Tab {
 	loading: boolean;
 	error: string | null;
 }
+
+export interface DirPair {
+	id: string;
+	name: string;
+	leftPath: string;
+	rightPath: string;
+}

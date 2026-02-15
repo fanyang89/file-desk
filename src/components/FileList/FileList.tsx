@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Loader2, FolderOpen } from 'lucide-react'
 import {
 	useFileStore,
@@ -24,12 +24,15 @@ export function FileList() {
 	const activePaneId = useFileStore((s) => s.activePaneId)
 	const paneId = useExplorerPaneId()
 	const isActivePane = paneId ? paneId === activePaneId : true
+	const hasLoadedInitialPath = useRef(false)
 
 	useKeyboardShortcuts(isActivePane)
 
 	useEffect(() => {
-		void navigate('')
-	}, [navigate])
+		if (hasLoadedInitialPath.current) return
+		hasLoadedInitialPath.current = true
+		void navigate(currentPath)
+	}, [currentPath, navigate])
 
 	const handleBackgroundClick = () => {
 		clearSelection()
