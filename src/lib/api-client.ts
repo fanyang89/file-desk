@@ -9,6 +9,7 @@ import {
 	mockListTasks,
 	mockCancelTask,
 	mockUploadFiles,
+	mockUploadFileItems,
 	getMockDownloadUrl,
 	getMockPreviewUrl,
 	mockFetchTextContent,
@@ -40,6 +41,11 @@ interface GetTaskResponse {
 
 interface ListTasksResponse {
 	tasks: BackgroundTask[];
+}
+
+export interface UploadFileItem {
+	file: File;
+	relativePath?: string;
 }
 
 function isVercelDeploymentHost(): boolean {
@@ -361,6 +367,31 @@ export async function uploadFiles(
 		fallbackReason: "POST /api/upload",
 		errorFallback: "Failed to upload",
 		mockValue: () => mockUploadFiles(path, files),
+	});
+}
+
+export async function uploadFileItems(
+	path: string,
+	items: UploadFileItem[],
+): Promise<{ success: boolean; files: string[] }> {
+	const formData = new FormData();
+	for (const item of items) {
+		const normalizedPath = (item.relativePath || item.file.name)
+			.replace(/\\/g, "/")
+			.replace(/^\/+/, "")
+			.replace(/\/{2,}/g, "/");
+		formData.append("files", item.file, normalizedPath || item.file.name);
+	}
+
+	return requestJsonWithMock({
+		url: `/api/upload?path=${encodeURIComponent(path)}`,
+		init: {
+			method: "POST",
+			body: formData,
+		},
+		fallbackReason: "POST /api/upload",
+		errorFallback: "Failed to upload",
+		mockValue: () => mockUploadFileItems(path, items),
 	});
 }
 

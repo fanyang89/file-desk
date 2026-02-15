@@ -54,6 +54,26 @@ function parseBody(req: IncomingMessage): Promise<Record<string, unknown>> {
 	});
 }
 
+function normalizeUploadRelativePath(filename: string): string {
+	const normalized = filename
+		.replace(/\\/g, "/")
+		.replace(/^\/+/, "")
+		.replace(/\/{2,}/g, "/");
+
+	const segments = normalized.split("/").filter(Boolean);
+	if (segments.length === 0) {
+		throw new Error("Invalid upload filename");
+	}
+
+	for (const segment of segments) {
+		if (segment === "." || segment === "..") {
+			throw new Error("Invalid upload path");
+		}
+	}
+
+	return segments.join("/");
+}
+
 function createThumbnailEtag(
 	absPath: string,
 	sourceSize: number,
@@ -246,6 +266,14 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 
 		const busboy = Busboy({ headers: req.headers as Record<string, string> });
 		const uploads: string[] = [];
+		const writePromises: Array<Promise<void>> = [];
+		let responded = false;
+
+		const respondError = (message: string, status = 500) => {
+			if (responded) return;
+			responded = true;
+			sendError(res, message, status);
+		};
 
 		busboy.on(
 			"file",
@@ -254,21 +282,54 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 				file: NodeJS.ReadableStream,
 				info: { filename: string },
 			) => {
-				const { filename } = info;
-				const savePath = path.join(absDir, filename);
-				safePath(path.join(dirPath, filename));
-				const writeStream = createWriteStream(savePath);
-				file.pipe(writeStream);
-				uploads.push(filename);
+				let relativePath = "";
+				try {
+					relativePath = normalizeUploadRelativePath(info.filename);
+				} catch (err) {
+					file.resume();
+					respondError((err as Error).message, 400);
+					return;
+				}
+
+				const writePromise = (async () => {
+					const savePath = safePath(path.join(dirPath, relativePath));
+					if (!(savePath === absDir || savePath.startsWith(`${absDir}${path.sep}`))) {
+						throw new Error("Invalid upload path");
+					}
+
+					await fs.mkdir(path.dirname(savePath), { recursive: true });
+					await new Promise<void>((resolve, reject) => {
+						const writeStream = createWriteStream(savePath);
+
+						writeStream.on("error", reject);
+						writeStream.on("finish", resolve);
+						file.on("error", reject);
+
+						file.pipe(writeStream);
+					});
+				})();
+
+				writePromises.push(writePromise);
+				uploads.push(relativePath);
 			},
 		);
 
 		busboy.on("finish", () => {
-			sendJson(res, { success: true, files: uploads });
+			void (async () => {
+				if (responded) return;
+				try {
+					await Promise.all(writePromises);
+					if (responded) return;
+					responded = true;
+					sendJson(res, { success: true, files: uploads });
+				} catch (err) {
+					respondError((err as Error).message, 500);
+				}
+			})();
 		});
 
 		busboy.on("error", (err: Error) => {
-			sendError(res, err.message, 500);
+			respondError(err.message, 500);
 		});
 
 		req.pipe(busboy);

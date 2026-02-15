@@ -322,6 +322,11 @@ interface MockListFilesOptions {
 	imagesOnly?: boolean;
 }
 
+export interface MockUploadFileItem {
+	file: File;
+	relativePath?: string;
+}
+
 function collectListEntries(
 	dir: MockDir,
 	parentPath: string,
@@ -504,43 +509,114 @@ export function mockMoveEntries(
 	return { success: true };
 }
 
-export async function mockUploadFiles(
+function assertValidPathSegment(segment: string): string {
+	if (!segment) throw new Error("Invalid upload path");
+	if (segment === "." || segment === "..") {
+		throw new Error(`Invalid upload path segment: "${segment}"`);
+	}
+	if (segment.includes("/") || segment.includes("\\")) {
+		throw new Error(`Invalid upload path segment: "${segment}"`);
+	}
+	return segment;
+}
+
+function normalizeUploadRelativePath(relativePath: string, fallbackName: string): string {
+	const raw = (relativePath || fallbackName).replace(/\\/g, "/");
+	const segments = raw
+		.split("/")
+		.filter(Boolean)
+		.map((segment) => assertValidPathSegment(segment.trim()));
+
+	if (segments.length === 0) {
+		segments.push(assertValidPathSegment(assertValidName(fallbackName)));
+	}
+
+	return segments.join("/");
+}
+
+function getOrCreateDirectory(
+	parent: MockDir,
+	segment: string,
+	currentPath: string,
+): MockDir {
+	const existing = parent.children.get(segment);
+	if (!existing) {
+		const nextDir = createDir(segment);
+		parent.children.set(segment, nextDir);
+		parent.modifiedAt = nowIso();
+		return nextDir;
+	}
+
+	if (existing.kind !== "dir") {
+		throw new Error(`Cannot create folder "${segment}" in /${currentPath}`);
+	}
+
+	return existing;
+}
+
+export async function mockUploadFileItems(
 	path: string,
-	files: FileList,
+	items: MockUploadFileItem[],
 ): Promise<{ success: boolean; files: string[] }> {
 	const normalizedPath = normalizePath(path);
-	const dir = getDir(normalizedPath);
-	if (!dir) throw new Error(`Directory not found: /${normalizedPath}`);
+	const targetDir = getDir(normalizedPath);
+	if (!targetDir) throw new Error(`Directory not found: /${normalizedPath}`);
 
 	const uploaded: string[] = [];
-	for (const file of files) {
+	for (const item of items) {
+		const relativePath = normalizeUploadRelativePath(
+			item.relativePath || item.file.name,
+			item.file.name,
+		);
+		const segments = splitPath(relativePath);
+		const fileName = segments[segments.length - 1];
+		let currentDir = targetDir;
+		let currentPath = normalizedPath;
+
+		for (const segment of segments.slice(0, -1)) {
+			currentDir = getOrCreateDirectory(currentDir, segment, currentPath);
+			currentPath = joinPath(currentPath, segment);
+		}
+
 		let content = "";
 		try {
-			content = await file.text();
+			content = await item.file.text();
 		} catch {
-			content = `[binary file: ${file.name}]`;
+			content = `[binary file: ${fileName}]`;
 		}
 
 		const mimeType =
-			file.type || inferMimeType(file.name, "application/octet-stream");
-		const existingNode = dir.children.get(file.name);
+			item.file.type || inferMimeType(fileName, "application/octet-stream");
+		const existingNode = currentDir.children.get(fileName);
 		if (existingNode?.kind === "dir") {
-			throw new Error(`Cannot overwrite folder "${file.name}"`);
+			throw new Error(`Cannot overwrite folder "${fileName}"`);
 		}
 
 		if (existingNode?.kind === "file") {
 			existingNode.content = content;
 			existingNode.mimeType = mimeType;
-			existingNode.extension = getExtension(file.name);
+			existingNode.extension = getExtension(fileName);
 			existingNode.modifiedAt = nowIso();
 		} else {
-			dir.children.set(file.name, createFile(file.name, content, mimeType));
+			currentDir.children.set(fileName, createFile(fileName, content, mimeType));
 		}
-		uploaded.push(file.name);
+
+		currentDir.modifiedAt = nowIso();
+		uploaded.push(relativePath);
 	}
 
 	touchDir(normalizedPath);
 	return { success: true, files: uploaded };
+}
+
+export async function mockUploadFiles(
+	path: string,
+	files: FileList,
+): Promise<{ success: boolean; files: string[] }> {
+	return mockUploadFileItems(
+		path,
+		Array.from(files).map((file) => ({ file, relativePath: file.name })),
+	);
 }
 
 interface MockTaskRecord {

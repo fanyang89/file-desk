@@ -30,6 +30,7 @@ input {
 }
 
 .explorer-pane {
+	position: relative;
 	min-width: 0;
 	min-height: 0;
 	display: flex;
@@ -46,6 +47,30 @@ input {
 	box-shadow:
 		0 0 0 1px var(--accent-a6),
 		var(--shadow-2);
+}
+
+.explorer-pane.drag-over {
+	border-color: var(--accent-9);
+	box-shadow:
+		0 0 0 2px color-mix(in oklab, var(--accent-9) 45%, transparent),
+		var(--shadow-2);
+}
+
+.explorer-pane-drop-indicator {
+	position: absolute;
+	inset: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 2px dashed color-mix(in oklab, var(--accent-9) 75%, var(--gray-7));
+	border-radius: var(--radius-4);
+	background: color-mix(in oklab, var(--accent-a3) 72%, white);
+	color: var(--accent-11);
+	font-size: 14px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	pointer-events: none;
+	z-index: 20;
 }
 
 /* Sidebar */
