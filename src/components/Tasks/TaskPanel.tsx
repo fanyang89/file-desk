@@ -4,7 +4,12 @@ import { Dialog } from "radix-ui";
 import { Theme } from "@radix-ui/themes";
 import { cancelTask, listTasks } from "@/lib/api-client";
 import { useToast } from "@/components/Toast/useToast";
-import { useFileStore } from "@/store/file-store";
+import {
+	getActivePaneId,
+	getPaneActiveTabError,
+	getPaneCurrentPath,
+	useFileStore,
+} from "@/store/file-store";
 import type { BackgroundTask, TaskStatus } from "@/types";
 
 const ACTIVE_STATUSES: TaskStatus[] = ["queued", "running"];
@@ -183,6 +188,19 @@ export function TaskPanel() {
 	const handleTaskJumpChoice = async (destinationPath: string) => {
 		try {
 			await navigate(destinationPath);
+			const paneId = getActivePaneId();
+			const navigationError = getPaneActiveTabError(paneId);
+			if (navigationError) {
+				showToast(navigationError, "error");
+				return;
+			}
+
+			const currentPanePath = getPaneCurrentPath(paneId);
+			if (currentPanePath !== destinationPath) {
+				showToast("Failed to navigate to requested path", "error");
+				return;
+			}
+
 			showToast(`Jumped to ${formatPath(destinationPath)}`);
 			setJumpTask(null);
 		} catch (err) {
