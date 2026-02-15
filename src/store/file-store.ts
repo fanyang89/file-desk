@@ -590,13 +590,7 @@ export function usePanePath(paneId: PaneId): string {
 }
 
 export function getPaneCurrentPath(paneId: PaneId): string {
-	const state = useFileStoreBase.getState()
-	const pane = state.panes[paneId]
-	return getActiveTab(pane.tabs, pane.activeTabId)?.path ?? ''
-}
-
-export function getPaneActiveTabId(paneId: PaneId): string {
-	return useFileStoreBase.getState().panes[paneId].activeTabId
+	return useFileStoreBase.getState().panes[paneId].path
 }
 
 export function getActivePaneId(): PaneId {
@@ -604,20 +598,11 @@ export function getActivePaneId(): PaneId {
 }
 
 export function getPaneActiveTabError(paneId: PaneId): string | null {
-	const state = useFileStoreBase.getState()
-	const pane = state.panes[paneId]
-	return getActiveTab(pane.tabs, pane.activeTabId)?.error ?? null
+	return useFileStoreBase.getState().panes[paneId].error
 }
 
 export async function refreshPaneById(paneId: PaneId): Promise<void> {
 	await useFileStoreBase.getState().refresh(paneId)
-}
-
-export async function refreshPaneTabById(
-	paneId: PaneId,
-	tabId: string,
-): Promise<void> {
-	await useFileStoreBase.getState().refreshTab(tabId, paneId)
 }
 
 // Selectors for derived state

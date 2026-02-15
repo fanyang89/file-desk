@@ -23,8 +23,7 @@ import {
 	useExplorerPaneId,
 	type PaneId,
 	getPaneCurrentPath,
-	getPaneActiveTabId,
-	refreshPaneTabById,
+	refreshPaneById,
 } from "@/store/file-store";
 import { createCopyMoveTask, getTask, uploadFiles } from "@/lib/api-client";
 import { useToast } from "@/components/Toast/useToast";
@@ -72,7 +71,6 @@ function sleep(ms: number): Promise<void> {
 }
 
 export function Toolbar() {
-	const activeTabId = useFileStore((s) => s.activeTabId);
 	const activePaneId = useFileStore((s) => s.activePaneId);
 	const viewMode = useFileStore((s) => s.viewMode);
 	const setViewMode = useFileStore((s) => s.setViewMode);
@@ -83,7 +81,7 @@ export function Toolbar() {
 	const entries = useFileStore(selectEntries);
 	const selectedPaths = useFileStore((s) => s.selectedPaths);
 	const navigate = useFileStore((s) => s.navigate);
-	const refreshTab = useFileStore((s) => s.refreshTab);
+	const refresh = useFileStore((s) => s.refresh);
 	const paneId = useExplorerPaneId();
 	const { showToast } = useToast();
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -91,9 +89,6 @@ export function Toolbar() {
 	const [newFolderTargetPath, setNewFolderTargetPath] = useState<string | null>(
 		null,
 	);
-	const [newFolderTargetTabId, setNewFolderTargetTabId] = useState<
-		string | null
-	>(null);
 	const [isEditingPath, setIsEditingPath] = useState(false);
 	const [pathInput, setPathInput] = useState("");
 	const [transferBusy, setTransferBusy] = useState(false);
@@ -112,12 +107,11 @@ export function Toolbar() {
 	const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = e.target.files;
 		if (!files || files.length === 0) return;
-		const uploadTabId = activeTabId;
 		const uploadPath = currentPath;
 		try {
 			await uploadFiles(uploadPath, files);
 			showToast("Files uploaded successfully");
-			await refreshTab(uploadTabId);
+			await refresh();
 		} catch (err) {
 			showToast((err as Error).message, "error");
 		}
@@ -132,7 +126,6 @@ export function Toolbar() {
 
 	const handleNewFolderOpen = () => {
 		setNewFolderTargetPath(currentPath);
-		setNewFolderTargetTabId(activeTabId);
 		setNewFolderOpen(true);
 	};
 
@@ -140,7 +133,6 @@ export function Toolbar() {
 		setNewFolderOpen(open);
 		if (!open) {
 			setNewFolderTargetPath(null);
-			setNewFolderTargetTabId(null);
 		}
 	};
 
@@ -225,7 +217,6 @@ export function Toolbar() {
 		const sourcePaneId = paneId ?? activePaneId;
 		const targetPaneId = getTargetPaneId(sourcePaneId);
 		const targetPath = getPaneCurrentPath(targetPaneId);
-		const targetTabId = getPaneActiveTabId(targetPaneId);
 
 		if (sourcePath === targetPath) {
 			showToast("Source and target directories cannot be the same", "error");
@@ -233,7 +224,6 @@ export function Toolbar() {
 		}
 
 		const names = Array.from(selectedNameSet);
-		const transferTabId = activeTabId;
 
 		setTransferBusy(true);
 		try {
@@ -260,10 +250,7 @@ export function Toolbar() {
 				}
 			}
 
-			await Promise.all([
-				refreshTab(transferTabId),
-				refreshPaneTabById(targetPaneId, targetTabId),
-			]);
+			await Promise.all([refresh(), refreshPaneById(targetPaneId)]);
 
 			if (status === "completed") {
 				showToast(
@@ -497,7 +484,6 @@ export function Toolbar() {
 
 			<NewFolderDialog
 				targetPath={newFolderTargetPath}
-				targetTabId={newFolderTargetTabId}
 				open={newFolderOpen}
 				onOpenChange={handleNewFolderOpenChange}
 			/>
