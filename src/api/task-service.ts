@@ -128,10 +128,19 @@ function toTaskDto(task: Task): TaskDto {
 }
 
 function sanitizeNames(names: string[]): string[] {
-	const normalized = names
-		.map((name) => name.trim())
-		.filter((name) => name.length > 0);
-	return Array.from(new Set(normalized));
+	const seen = new Set<string>();
+	const uniqueNames: string[] = [];
+
+	for (const name of names) {
+		if (name.length === 0) {
+			throw new Error("Name is required");
+		}
+		if (seen.has(name)) continue;
+		seen.add(name);
+		uniqueNames.push(name);
+	}
+
+	return uniqueNames;
 }
 
 async function ensureDatabaseReady(): Promise<void> {

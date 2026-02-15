@@ -167,6 +167,15 @@ function assertValidName(name: string): string {
 	return trimmed;
 }
 
+function assertValidTransferName(name: string): string {
+	if (!name) throw new Error("Name is required");
+	if (name === "." || name === "..") throw new Error(`Invalid name: "${name}"`);
+	if (name.includes("/") || name.includes("\\")) {
+		throw new Error(`Invalid name: "${name}"`);
+	}
+	return name;
+}
+
 function getParentPath(filePath: string): string {
 	const segments = splitPath(filePath);
 	if (segments.length <= 1) return "";
@@ -441,7 +450,7 @@ function transferMockEntries(
 		throw new Error(`Directory not found: /${normalizedTargetPath}`);
 	}
 
-	const uniqueNames = Array.from(new Set(names.map(assertValidName)));
+	const uniqueNames = Array.from(new Set(names.map(assertValidTransferName)));
 	if (uniqueNames.length === 0) {
 		throw new Error("No files selected");
 	}
@@ -676,7 +685,9 @@ export function mockCreateCopyMoveTask({
 	targetPath,
 	names,
 }: MockCreateTaskInput): { taskId: string; task: BackgroundTask } {
-	const normalizedNames = Array.from(new Set(names.map(assertValidName)));
+	const normalizedNames = Array.from(
+		new Set(names.map(assertValidTransferName)),
+	);
 	if (normalizedNames.length === 0) {
 		throw new Error("No files selected");
 	}

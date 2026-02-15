@@ -28,17 +28,16 @@ export class TaskCancelledError extends Error {
 }
 
 function assertValidName(name: string): string {
-	const trimmed = name.trim();
-	if (!trimmed) {
+	if (name.length === 0) {
 		throw new Error("Name is required");
 	}
-	if (trimmed === "." || trimmed === "..") {
+	if (name === "." || name === "..") {
 		throw new Error(`Invalid name: "${name}"`);
 	}
-	if (trimmed.includes("/") || trimmed.includes("\\")) {
+	if (name.includes("/") || name.includes("\\")) {
 		throw new Error(`Invalid name: "${name}"`);
 	}
-	return trimmed;
+	return name;
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
