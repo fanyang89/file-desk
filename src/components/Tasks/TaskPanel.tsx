@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, CheckCircle2, Clock3, Loader2, XCircle } from "lucide-react";
 import { Dialog } from "radix-ui";
+import { Theme } from "@radix-ui/themes";
 import { cancelTask, listTasks } from "@/lib/api-client";
 import { useToast } from "@/components/Toast/useToast";
 import { useFileStore } from "@/store/file-store";
@@ -300,56 +301,75 @@ export function TaskPanel() {
 
 			<Dialog.Root open={jumpTask !== null} onOpenChange={(open) => !open && setJumpTask(null)}>
 				<Dialog.Portal>
-					<Dialog.Overlay className="dialog-overlay" />
-					<Dialog.Content className="dialog-content">
-						<Dialog.Title className="dialog-title">Jump To Directory</Dialog.Title>
-						<Dialog.Description className="dialog-description">
-							Choose where to navigate for this task.
-						</Dialog.Description>
-						{jumpTask && (
-							<div className="task-jump-paths">
-								<div className="task-jump-item">
-									<span className="task-jump-label">Source</span>
-									<span className="task-jump-value" title={formatPath(jumpTask.sourcePath)}>
-										{formatPath(jumpTask.sourcePath)}
-									</span>
-								</div>
-								<div className="task-jump-item">
-									<span className="task-jump-label">Target</span>
-									<span className="task-jump-value" title={formatPath(jumpTask.targetPath)}>
-										{formatPath(jumpTask.targetPath)}
-									</span>
-								</div>
-							</div>
-						)}
-						<div className="dialog-actions">
-							<button
-								type="button"
-								className="dialog-btn cancel"
-								onClick={() => setJumpTask(null)}
-							>
-								Close
-							</button>
+					<Theme
+						appearance="light"
+						accentColor="indigo"
+						grayColor="slate"
+						panelBackground="solid"
+						radius="large"
+						scaling="100%"
+					>
+						<Dialog.Overlay className="dialog-overlay" />
+						<Dialog.Content className="dialog-content">
+							<Dialog.Title className="dialog-title">Jump To Directory</Dialog.Title>
+							<Dialog.Description className="dialog-description">
+								Choose where to navigate for this task.
+							</Dialog.Description>
 							{jumpTask && (
-								<>
-									<button
-										type="button"
-										className="dialog-btn primary"
-										onClick={() => void handleTaskJumpChoice(jumpTask.sourcePath)}
-									>
-										Go Source
-									</button>
-									<button
-										type="button"
-										className="dialog-btn primary"
-										onClick={() => void handleTaskJumpChoice(jumpTask.targetPath)}
-									>
-										Go Target
-									</button>
-								</>
+								<div className="task-jump-paths">
+									<div className="task-jump-item">
+										<span className="task-jump-label">Source</span>
+										<span
+											className="task-jump-value"
+											title={formatPath(jumpTask.sourcePath)}
+										>
+											{formatPath(jumpTask.sourcePath)}
+										</span>
+									</div>
+									<div className="task-jump-item">
+										<span className="task-jump-label">Target</span>
+										<span
+											className="task-jump-value"
+											title={formatPath(jumpTask.targetPath)}
+										>
+											{formatPath(jumpTask.targetPath)}
+										</span>
+									</div>
+								</div>
 							)}
-						</div>
-					</Dialog.Content>
+							<div className="dialog-actions">
+								<button
+									type="button"
+									className="dialog-btn cancel"
+									onClick={() => setJumpTask(null)}
+								>
+									Close
+								</button>
+								{jumpTask && (
+									<>
+										<button
+											type="button"
+											className="dialog-btn primary"
+											onClick={() =>
+												void handleTaskJumpChoice(jumpTask.sourcePath)
+											}
+										>
+											Go Source
+										</button>
+										<button
+											type="button"
+											className="dialog-btn primary"
+											onClick={() =>
+												void handleTaskJumpChoice(jumpTask.targetPath)
+											}
+										>
+											Go Target
+										</button>
+									</>
+								)}
+							</div>
+						</Dialog.Content>
+					</Theme>
 				</Dialog.Portal>
 			</Dialog.Root>
 		</>
