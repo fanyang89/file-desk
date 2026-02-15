@@ -57,6 +57,7 @@ export async function handleCreateCopyMoveTask(
 			sourcePath?: unknown;
 			targetPath?: unknown;
 			names?: unknown;
+			overwriteNames?: unknown;
 		};
 
 		if (body.operation !== "copy" && body.operation !== "move") {
@@ -79,11 +80,22 @@ export async function handleCreateCopyMoveTask(
 			return;
 		}
 
+		if (
+			body.overwriteNames !== undefined &&
+			(!Array.isArray(body.overwriteNames) ||
+				body.overwriteNames.some((name) => typeof name !== "string"))
+		) {
+			sendError(res, "overwriteNames must be an array of strings");
+			return;
+		}
+
 		const task = await createCopyMoveTask({
 			operation: body.operation,
 			sourcePath: body.sourcePath,
 			targetPath: body.targetPath,
 			names: body.names,
+			overwriteNames:
+				body.overwriteNames === undefined ? [] : body.overwriteNames,
 		});
 
 		sendJson(res, { taskId: task.id, task }, 202);

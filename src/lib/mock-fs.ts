@@ -437,6 +437,7 @@ function transferMockEntries(
 	sourcePath: string,
 	targetPath: string,
 	names: string[],
+	overwriteNames: string[] = [],
 ): void {
 	const normalizedSourcePath = normalizePath(sourcePath);
 	const normalizedTargetPath = normalizePath(targetPath);
@@ -456,6 +457,9 @@ function transferMockEntries(
 	}
 
 	const uniqueNames = Array.from(new Set(names.map(assertValidTransferName)));
+	const overwriteNameSet = new Set(
+		overwriteNames.map(assertValidTransferName),
+	);
 	if (uniqueNames.length === 0) {
 		throw new Error("No files selected");
 	}
@@ -466,7 +470,7 @@ function transferMockEntries(
 			throw new Error(`"${name}" does not exist`);
 		}
 
-		if (targetDir.children.has(name)) {
+		if (targetDir.children.has(name) && !overwriteNameSet.has(name)) {
 			throw new Error(`"${name}" already exists in target directory`);
 		}
 
@@ -495,8 +499,9 @@ export function mockCopyEntries(
 	sourcePath: string,
 	targetPath: string,
 	names: string[],
+	overwriteNames: string[] = [],
 ): { success: boolean } {
-	transferMockEntries("copy", sourcePath, targetPath, names);
+	transferMockEntries("copy", sourcePath, targetPath, names, overwriteNames);
 	return { success: true };
 }
 
@@ -504,8 +509,9 @@ export function mockMoveEntries(
 	sourcePath: string,
 	targetPath: string,
 	names: string[],
+	overwriteNames: string[] = [],
 ): { success: boolean } {
-	transferMockEntries("move", sourcePath, targetPath, names);
+	transferMockEntries("move", sourcePath, targetPath, names, overwriteNames);
 	return { success: true };
 }
 
@@ -625,6 +631,7 @@ interface MockTaskRecord {
 	sourcePath: string;
 	targetPath: string;
 	names: string[];
+	overwriteNames: string[];
 	status: TaskStatus;
 	processedItems: number;
 	totalItems: number;
@@ -718,7 +725,14 @@ async function runMockTask(taskId: string): Promise<void> {
 
 			const name = task.names[i];
 			await wait(80);
-			transferMockEntries(task.operation, task.sourcePath, task.targetPath, [name]);
+			const overwriteNames = task.overwriteNames.includes(name) ? [name] : [];
+			transferMockEntries(
+				task.operation,
+				task.sourcePath,
+				task.targetPath,
+				[name],
+				overwriteNames,
+			);
 			task.processedItems = i + 1;
 			task.currentItem = name;
 			task.updatedAt = now();
@@ -753,6 +767,7 @@ interface MockCreateTaskInput {
 	sourcePath: string;
 	targetPath: string;
 	names: string[];
+	overwriteNames?: string[];
 }
 
 export function mockCreateCopyMoveTask({
@@ -760,9 +775,16 @@ export function mockCreateCopyMoveTask({
 	sourcePath,
 	targetPath,
 	names,
+	overwriteNames = [],
 }: MockCreateTaskInput): { taskId: string; task: BackgroundTask } {
 	const normalizedNames = Array.from(
 		new Set(names.map(assertValidTransferName)),
+	);
+	const overwriteNameSet = new Set(
+		overwriteNames.map(assertValidTransferName),
+	);
+	const normalizedOverwriteNames = normalizedNames.filter((name) =>
+		overwriteNameSet.has(name),
 	);
 	if (normalizedNames.length === 0) {
 		throw new Error("No files selected");
@@ -775,6 +797,7 @@ export function mockCreateCopyMoveTask({
 		sourcePath: normalizePath(sourcePath),
 		targetPath: normalizePath(targetPath),
 		names: normalizedNames,
+		overwriteNames: normalizedOverwriteNames,
 		status: "queued",
 		processedItems: 0,
 		totalItems: normalizedNames.length,

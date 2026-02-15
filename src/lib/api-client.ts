@@ -296,19 +296,34 @@ export async function createCopyMoveTask(
 	sourcePath: string,
 	targetPath: string,
 	names: string[],
+	options?: { overwriteNames?: string[] },
 ): Promise<CreateTaskResponse> {
+	const overwriteNames = options?.overwriteNames ?? [];
+
 	return requestJsonWithMock({
 		url: "/api/tasks/copy-move",
 		init: {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ operation, sourcePath, targetPath, names }),
+			body: JSON.stringify({
+				operation,
+				sourcePath,
+				targetPath,
+				names,
+				overwriteNames,
+			}),
 		},
 		fallbackReason: "POST /api/tasks/copy-move",
 		errorFallback: "Failed to create task",
 		fallbackOnNotFound: true,
 		mockValue: () =>
-			mockCreateCopyMoveTask({ operation, sourcePath, targetPath, names }),
+			mockCreateCopyMoveTask({
+				operation,
+				sourcePath,
+				targetPath,
+				names,
+				overwriteNames,
+			}),
 	});
 }
 
