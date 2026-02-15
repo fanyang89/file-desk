@@ -1144,6 +1144,17 @@ input {
 	color: var(--red-11);
 }
 
+.context-menu-item[data-disabled] {
+	color: var(--gray-8);
+	cursor: not-allowed;
+}
+
+.context-menu-item[data-disabled]:hover,
+.context-menu-item[data-disabled][data-highlighted] {
+	background: transparent;
+	color: var(--gray-8);
+}
+
 .context-menu-separator {
 	height: 1px;
 	background: var(--gray-a5);
