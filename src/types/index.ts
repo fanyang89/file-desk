@@ -19,14 +19,6 @@ export interface SortConfig {
 	direction: SortDirection;
 }
 
-export interface Tab {
-	id: string;
-	path: string;
-	entries: FileEntry[];
-	loading: boolean;
-	error: string | null;
-}
-
 export interface DirPair {
 	id: string;
 	name: string;
