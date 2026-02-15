@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AlertDialog, Popover } from 'radix-ui'
 import { Button, Flex, Theme, Tooltip } from '@radix-ui/themes'
-import { HardDrive, ListTodo, Plus, Trash2 } from 'lucide-react'
+import { FolderPlus, HardDrive, ListTodo, Plus, Trash2 } from 'lucide-react'
 import { TaskPanel } from '@/components/Tasks/TaskPanel'
 import { useFileStore, usePanePath } from '@/store/file-store'
 import type { DirPair } from '@/types'
@@ -88,6 +88,7 @@ export function Sidebar() {
 	const dirPairs = useFileStore((s) => s.dirPairs)
 	const activeDirPairId = useFileStore((s) => s.activeDirPairId)
 	const createDirPair = useFileStore((s) => s.createDirPair)
+	const createEmptyDirPair = useFileStore((s) => s.createEmptyDirPair)
 	const switchDirPair = useFileStore((s) => s.switchDirPair)
 	const deleteDirPair = useFileStore((s) => s.deleteDirPair)
 	const leftPath = usePanePath('left')
@@ -97,6 +98,10 @@ export function Sidebar() {
 
 	const handleCreateDirPair = () => {
 		createDirPair(leftPath, rightPath)
+	}
+
+	const handleCreateEmptyDirPair = () => {
+		void createEmptyDirPair()
 	}
 
 	const openDeleteDialog = (dirPair: DirPair) => {
@@ -127,6 +132,14 @@ export function Sidebar() {
 							aria-label='Save current dir pair'
 						>
 							<Plus size={16} />
+						</button>
+						<button
+							className='sidebar-header-action'
+							onClick={handleCreateEmptyDirPair}
+							title='Create empty dir pair'
+							aria-label='Create empty dir pair'
+						>
+							<FolderPlus size={16} />
 						</button>
 						<Popover.Root>
 							<Popover.Trigger asChild>
@@ -166,9 +179,17 @@ export function Sidebar() {
 					{dirPairs.length === 0 ? (
 						<div className='sidebar-empty'>
 							<p>No dir pairs yet</p>
-							<button className='sidebar-create-btn' onClick={handleCreateDirPair}>
-								Save current pair
-							</button>
+							<div className='sidebar-empty-actions'>
+								<button className='sidebar-create-btn' onClick={handleCreateDirPair}>
+									Save current pair
+								</button>
+								<button
+									className='sidebar-create-btn'
+									onClick={handleCreateEmptyDirPair}
+								>
+									Create empty pair
+								</button>
+							</div>
 						</div>
 					) : (
 						dirPairs.map((dirPair) => (
