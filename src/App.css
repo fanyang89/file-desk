@@ -65,6 +65,7 @@ input {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	gap: 12px;
 	padding: 18px 16px;
 	font-size: 17px;
 	font-weight: 600;
@@ -82,7 +83,7 @@ input {
 .sidebar-header-actions {
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	gap: 6px;
 }
 
 .sidebar-header-action {
@@ -112,6 +113,51 @@ input {
 	letter-spacing: 0.01em;
 }
 
+.task-popover-trigger {
+	width: 30px;
+	height: 30px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: var(--radius-3);
+	border: 1px solid var(--gray-a5);
+	background: var(--gray-a2);
+	color: var(--gray-11);
+	cursor: pointer;
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease,
+		color 0.15s ease;
+}
+
+.task-popover-trigger:hover {
+	background: var(--gray-a3);
+	border-color: var(--gray-a6);
+	color: var(--gray-12);
+}
+
+.task-popover-trigger:focus-visible {
+	outline: 2px solid var(--accent-a8);
+	outline-offset: 1px;
+}
+
+.task-popover-content {
+	width: min(420px, calc(100vw - 24px));
+	max-height: min(72vh, 640px);
+	background: var(--color-panel-solid);
+	border: 1px solid var(--gray-6);
+	border-radius: var(--radius-4);
+	box-shadow: var(--shadow-5);
+	z-index: 1200;
+	overflow: hidden;
+}
+
+.task-popover-arrow {
+	fill: var(--color-panel-solid);
+	stroke: var(--gray-6);
+	stroke-width: 1px;
+}
+
 .sidebar-nav {
 	display: flex;
 	flex-direction: column;
@@ -121,12 +167,10 @@ input {
 }
 
 .task-panel {
-	margin-top: auto;
-	border-top: 1px solid var(--gray-a4);
 	display: flex;
 	flex-direction: column;
-	min-height: 200px;
-	max-height: 52vh;
+	min-height: 280px;
+	max-height: min(72vh, 640px);
 	background: color-mix(in oklab, var(--color-panel) 94%, var(--gray-a2));
 }
 
@@ -201,6 +245,7 @@ input {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
+	flex: 1;
 }
 
 .task-panel-empty {
@@ -785,6 +830,10 @@ input {
 		font-size: 12px;
 		padding: 2px 6px;
 	}
+
+	.task-popover-content {
+		width: min(380px, calc(100vw - 20px));
+	}
 }
 
 @media (max-width: 1100px) {
@@ -816,11 +865,16 @@ input {
 	.sidebar-item-actions {
 		opacity: 1;
 		pointer-events: auto;
+}
+
+	.task-popover-content {
+		width: calc(100vw - 16px);
+		max-height: 68vh;
 	}
 
 	.task-panel {
-		min-height: 150px;
-		max-height: 32vh;
+		min-height: 220px;
+		max-height: 68vh;
 	}
 
 	.layout-main {
