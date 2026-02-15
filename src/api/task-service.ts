@@ -258,8 +258,12 @@ async function executeTask(taskId: string): Promise<void> {
 			shouldCancel: () => isCancellationRequested(task.id),
 		});
 
-		await prisma.task.update({
-			where: { id: task.id },
+		const completionUpdate = await prisma.task.updateMany({
+			where: {
+				id: task.id,
+				status: TaskStatus.RUNNING,
+				cancelRequested: false,
+			},
 			data: {
 				status: TaskStatus.COMPLETED,
 				processedItems: names.length,
@@ -269,6 +273,28 @@ async function executeTask(taskId: string): Promise<void> {
 				error: null,
 			},
 		});
+
+		if (completionUpdate.count === 0) {
+			const currentTask = await prisma.task.findUnique({
+				where: { id: task.id },
+				select: { status: true, cancelRequested: true },
+			});
+
+			if (
+				currentTask?.status === TaskStatus.RUNNING &&
+				currentTask.cancelRequested
+			) {
+				await prisma.task.update({
+					where: { id: task.id },
+					data: {
+						status: TaskStatus.CANCELLED,
+						finishedAt: new Date(),
+						currentItem: null,
+						error: null,
+					},
+				});
+			}
+		}
 	} catch (err) {
 		if (err instanceof TaskCancelledError) {
 			await prisma.task.update({
