@@ -13,6 +13,7 @@ import {
 import type { BackgroundTask, TaskStatus } from "@/types";
 
 const ACTIVE_STATUSES: TaskStatus[] = ["queued", "running"];
+const TASK_FETCH_LIMIT = 120;
 
 type TaskFilter = "all" | "active" | "completed" | "issues";
 
@@ -104,7 +105,7 @@ export function TaskPanel() {
 	const { showToast } = useToast();
 
 	const refreshTasks = useCallback(async () => {
-		const response = await listTasks(40);
+		const response = await listTasks(TASK_FETCH_LIMIT);
 		setTasks(response.tasks);
 		setError(null);
 	}, []);
@@ -117,7 +118,7 @@ export function TaskPanel() {
 			if (disposed || inFlight) return;
 			inFlight = true;
 			try {
-				const response = await listTasks(40);
+				const response = await listTasks(TASK_FETCH_LIMIT);
 				if (!disposed) {
 					setTasks(response.tasks);
 					setError(null);
@@ -158,6 +159,10 @@ export function TaskPanel() {
 				.filter((task) => !isActiveTask(task))
 				.slice(0, 10);
 			return [...runningTasks, ...recentTasks];
+		}
+
+		if (filter === "active") {
+			return filteredTasks;
 		}
 
 		return filteredTasks.slice(0, 20);
