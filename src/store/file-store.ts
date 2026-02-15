@@ -595,8 +595,19 @@ export function getPaneCurrentPath(paneId: PaneId): string {
 	return getActiveTab(pane.tabs, pane.activeTabId)?.path ?? ''
 }
 
+export function getPaneActiveTabId(paneId: PaneId): string {
+	return useFileStoreBase.getState().panes[paneId].activeTabId
+}
+
 export async function refreshPaneById(paneId: PaneId): Promise<void> {
 	await useFileStoreBase.getState().refresh(paneId)
+}
+
+export async function refreshPaneTabById(
+	paneId: PaneId,
+	tabId: string,
+): Promise<void> {
+	await useFileStoreBase.getState().refreshTab(tabId, paneId)
 }
 
 // Selectors for derived state
