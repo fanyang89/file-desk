@@ -375,17 +375,21 @@ export async function listTasks(limit = 50): Promise<TaskDto[]> {
 		take: limit,
 	});
 
-	const runningTasks = await prisma.task.findMany({
-		where: { status: TaskStatus.RUNNING },
+	const activeTasks = await prisma.task.findMany({
+		where: {
+			status: {
+				in: [TaskStatus.QUEUED, TaskStatus.RUNNING],
+			},
+		},
 		orderBy: { createdAt: "asc" },
 	});
 
 	const knownTaskIds = new Set(tasks.map((task) => task.id));
-	const missingRunningTasks = runningTasks.filter(
+	const missingActiveTasks = activeTasks.filter(
 		(task) => !knownTaskIds.has(task.id),
 	);
 
-	return [...missingRunningTasks, ...tasks].map(toTaskDto);
+	return [...missingActiveTasks, ...tasks].map(toTaskDto);
 }
 
 export async function cancelTask(taskId: string): Promise<boolean> {
