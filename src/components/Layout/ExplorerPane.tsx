@@ -22,10 +22,17 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 		}
 	}
 
+	const handleFocusCapture = () => {
+		if (!isActive) {
+			setActivePane(paneId)
+		}
+	}
+
 	return (
 		<div
 			className={`explorer-pane ${isActive ? 'active' : ''}`}
 			onMouseDown={handleActivate}
+			onFocusCapture={handleFocusCapture}
 		>
 			<ExplorerPaneProvider paneId={paneId}>
 				<Toolbar />
