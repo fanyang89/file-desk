@@ -1253,6 +1253,37 @@ input {
 	margin-bottom: 18px;
 }
 
+.transfer-conflict-list-wrap {
+	max-height: 180px;
+	overflow: auto;
+	border: 1px solid var(--gray-a6);
+	border-radius: var(--radius-3);
+	background: var(--gray-a2);
+	padding: 10px 12px;
+	margin-bottom: 16px;
+}
+
+.transfer-conflict-list {
+	margin: 0;
+	padding-left: 18px;
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.transfer-conflict-item {
+	font-size: 13px;
+	color: var(--gray-12);
+	line-height: 1.35;
+	word-break: break-word;
+}
+
+.transfer-conflict-more {
+	margin-top: 8px;
+	font-size: 12px;
+	color: var(--gray-10);
+}
+
 .dialog-field {
 	margin-bottom: 16px;
 }

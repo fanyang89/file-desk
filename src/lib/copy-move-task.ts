@@ -6,6 +6,14 @@ import {
 } from '@/store/file-store'
 import type { TaskOperation, TaskStatus } from '@/types'
 
+export const PANE_TRANSFER_DRAG_MIME = 'application/x-file-desk-pane-transfer'
+
+export interface PaneTransferDragPayload {
+	sourcePaneId: PaneId
+	sourcePath: string
+	names: string[]
+}
+
 function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => {
 		setTimeout(resolve, ms)
@@ -14,6 +22,62 @@ function sleep(ms: number): Promise<void> {
 
 function formatPathForToast(path: string): string {
 	return path ? `/${path}` : '/'
+}
+
+function uniqueValidNames(names: Iterable<string>): string[] {
+	const nameSet = new Set<string>()
+	for (const name of names) {
+		if (!name || name.includes('/') || name.includes('\\')) continue
+		nameSet.add(name)
+	}
+	return Array.from(nameSet)
+}
+
+export function writePaneTransferDragPayload(
+	dataTransfer: DataTransfer,
+	payload: PaneTransferDragPayload,
+): void {
+	const names = uniqueValidNames(payload.names)
+	if (names.length === 0) {
+		return
+	}
+
+	const normalizedPayload: PaneTransferDragPayload = {
+		sourcePaneId: payload.sourcePaneId,
+		sourcePath: payload.sourcePath,
+		names,
+	}
+
+	dataTransfer.setData(PANE_TRANSFER_DRAG_MIME, JSON.stringify(normalizedPayload))
+	dataTransfer.setData('text/plain', names.join('\n'))
+}
+
+export function readPaneTransferDragPayload(
+	dataTransfer: DataTransfer,
+): PaneTransferDragPayload | null {
+	const rawValue = dataTransfer.getData(PANE_TRANSFER_DRAG_MIME)
+	if (!rawValue) return null
+
+	try {
+		const parsed = JSON.parse(rawValue) as Partial<PaneTransferDragPayload>
+		if (parsed.sourcePaneId !== 'left' && parsed.sourcePaneId !== 'right') {
+			return null
+		}
+		if (typeof parsed.sourcePath !== 'string' || !Array.isArray(parsed.names)) {
+			return null
+		}
+
+		const names = uniqueValidNames(parsed.names)
+		if (names.length === 0) return null
+
+		return {
+			sourcePaneId: parsed.sourcePaneId,
+			sourcePath: parsed.sourcePath,
+			names,
+		}
+	} catch {
+		return null
+	}
 }
 
 export function getTargetPaneId(sourcePaneId: PaneId): PaneId {
@@ -87,6 +151,7 @@ interface RunCopyMoveTaskOptions {
 	operation: TaskOperation
 	sourcePath: string
 	sourcePaneId: PaneId
+	targetPaneId?: PaneId
 	names: string[]
 	showToast: ShowToast
 }
@@ -95,6 +160,7 @@ export async function runCopyMoveTask({
 	operation,
 	sourcePath,
 	sourcePaneId,
+	targetPaneId,
 	names,
 	showToast,
 }: RunCopyMoveTaskOptions): Promise<void> {
@@ -103,8 +169,8 @@ export async function runCopyMoveTask({
 		return
 	}
 
-	const targetPaneId = getTargetPaneId(sourcePaneId)
-	const targetPath = getPaneCurrentPath(targetPaneId)
+	const resolvedTargetPaneId = targetPaneId ?? getTargetPaneId(sourcePaneId)
+	const targetPath = getPaneCurrentPath(resolvedTargetPaneId)
 
 	if (sourcePath === targetPath) {
 		showToast('Source and target directories cannot be the same', 'error')
@@ -137,7 +203,7 @@ export async function runCopyMoveTask({
 
 		await Promise.all([
 			refreshPaneById(sourcePaneId),
-			refreshPaneById(targetPaneId),
+			refreshPaneById(resolvedTargetPaneId),
 		])
 
 		if (status === 'completed') {
