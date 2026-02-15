@@ -79,6 +79,12 @@ input {
 	min-width: 0;
 }
 
+.sidebar-header-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
 .sidebar-header-action {
 	display: flex;
 	align-items: center;
@@ -261,6 +267,12 @@ input {
 	border-radius: var(--radius-3);
 	color: var(--gray-10);
 	font-size: 13px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.sidebar-empty-actions {
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
@@ -1152,104 +1164,6 @@ input {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
-}
-
-/* Tab Bar */
-.tab-bar {
-	display: flex;
-	align-items: center;
-	padding: 0 8px;
-	border-bottom: 1px solid var(--gray-a5);
-	background: color-mix(in oklab, var(--gray-a2) 72%, var(--accent-a2));
-	flex-shrink: 0;
-	height: 40px;
-	gap: 4px;
-}
-
-.tab-add-btn {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 28px;
-	height: 28px;
-	border: 1px solid transparent;
-	background: transparent;
-	border-radius: var(--radius-3);
-	color: var(--gray-11);
-	cursor: pointer;
-	flex-shrink: 0;
-}
-
-.tab-add-btn:hover {
-	background: var(--gray-a3);
-	border-color: var(--gray-a5);
-	color: var(--gray-12);
-}
-
-.tab-list {
-	display: flex;
-	align-items: center;
-	gap: 3px;
-	overflow-x: auto;
-	flex: 1;
-	min-width: 0;
-	scrollbar-width: thin;
-}
-
-.tab-item {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	padding: 6px 12px;
-	border: 1px solid transparent;
-	background: transparent;
-	border-radius: var(--radius-3);
-	font-size: 13px;
-	color: var(--gray-11);
-	cursor: pointer;
-	white-space: nowrap;
-	max-width: 180px;
-}
-
-.tab-item:hover {
-	background: var(--gray-a3);
-	border-color: var(--gray-a5);
-	color: var(--gray-12);
-}
-
-.tab-item.active {
-	background: var(--accent-a4);
-	border-color: var(--accent-a7);
-	color: var(--accent-11);
-}
-
-.tab-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.tab-close-btn {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 18px;
-	height: 18px;
-	border: none;
-	background: transparent;
-	border-radius: var(--radius-2);
-	color: inherit;
-	cursor: pointer;
-	opacity: 0.65;
-	flex-shrink: 0;
-}
-
-.tab-close-btn:hover {
-	opacity: 1;
-	background: var(--gray-a5);
-}
-
-.tab-item.active .tab-close-btn:hover {
-	background: var(--accent-a6);
 }
 
 /* Photo View */

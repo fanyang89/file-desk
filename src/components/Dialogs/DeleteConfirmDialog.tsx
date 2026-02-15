@@ -8,7 +8,6 @@ import { useToast } from "@/components/Toast/useToast";
 interface DeleteConfirmDialogProps {
 	entry: FileEntry;
 	targetPath: string | null;
-	targetTabId: string | null;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 }
@@ -16,17 +15,15 @@ interface DeleteConfirmDialogProps {
 export function DeleteConfirmDialog({
 	entry,
 	targetPath,
-	targetTabId,
 	open,
 	onOpenChange,
 }: DeleteConfirmDialogProps) {
-	const activeTabId = useFileStore((s) => s.activeTabId);
-	const refreshTab = useFileStore((s) => s.refreshTab);
+	const refresh = useFileStore((s) => s.refresh);
 	const clearSelection = useFileStore((s) => s.clearSelection);
 	const { showToast } = useToast();
 
 	const handleDelete = async () => {
-		if (targetPath === null || targetTabId === null) {
+		if (targetPath === null) {
 			showToast("No target directory selected", "error");
 			return;
 		}
@@ -34,10 +31,8 @@ export function DeleteConfirmDialog({
 		try {
 			await deleteEntry(targetPath, entry.name);
 			showToast(`"${entry.name}" deleted`);
-			if (activeTabId === targetTabId) {
-				clearSelection();
-			}
-			await refreshTab(targetTabId);
+			clearSelection();
+			await refresh();
 			onOpenChange(false);
 		} catch (err) {
 			showToast((err as Error).message, "error");

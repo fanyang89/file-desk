@@ -1,8 +1,5 @@
-import { useState } from 'react'
-import { AlertDialog } from 'radix-ui'
-import { Button, Flex, Theme, Tooltip } from '@radix-ui/themes'
-import { HardDrive, Plus, Trash2 } from 'lucide-react'
-import type { DirPair } from '@/types'
+import { Tooltip } from '@radix-ui/themes'
+import { FolderPlus, HardDrive, Plus, Trash2 } from 'lucide-react'
 import { useFileStore, usePanePath } from '@/store/file-store'
 
 const PATH_DIFF_MIN_LENGTH = 18
@@ -87,37 +84,32 @@ export function Sidebar() {
 	const dirPairs = useFileStore((s) => s.dirPairs)
 	const activeDirPairId = useFileStore((s) => s.activeDirPairId)
 	const createDirPair = useFileStore((s) => s.createDirPair)
+	const createEmptyDirPair = useFileStore((s) => s.createEmptyDirPair)
 	const switchDirPair = useFileStore((s) => s.switchDirPair)
 	const deleteDirPair = useFileStore((s) => s.deleteDirPair)
 	const leftPath = usePanePath('left')
 	const rightPath = usePanePath('right')
-	const [deleteOpen, setDeleteOpen] = useState(false)
-	const [deleteTarget, setDeleteTarget] = useState<DirPair | null>(null)
 
 	const handleCreateDirPair = () => {
 		createDirPair(leftPath, rightPath)
 	}
 
-	const openDeleteDialog = (dirPair: DirPair) => {
-		setDeleteTarget(dirPair)
-		setDeleteOpen(true)
+	const handleCreateEmptyDirPair = () => {
+		void createEmptyDirPair()
 	}
 
-	const handleDeleteConfirm = () => {
-		if (!deleteTarget) return
-		deleteDirPair(deleteTarget.id)
-		setDeleteOpen(false)
-		setDeleteTarget(null)
+	const handleDeleteDirPair = (id: string) => {
+		deleteDirPair(id)
 	}
 
 	return (
-		<>
-			<aside className="sidebar">
-				<div className="sidebar-header">
-					<div className="sidebar-header-main">
-						<HardDrive size={24} />
-						<span className="sidebar-title">File Desk</span>
-					</div>
+		<aside className="sidebar">
+			<div className="sidebar-header">
+				<div className="sidebar-header-main">
+					<HardDrive size={24} />
+					<span className="sidebar-title">File Desk</span>
+				</div>
+				<div className="sidebar-header-actions">
 					<button
 						className="sidebar-header-action"
 						onClick={handleCreateDirPair}
@@ -126,100 +118,68 @@ export function Sidebar() {
 					>
 						<Plus size={16} />
 					</button>
+					<button
+						className="sidebar-header-action"
+						onClick={handleCreateEmptyDirPair}
+						title="Create empty dir pair"
+						aria-label="Create empty dir pair"
+					>
+						<FolderPlus size={16} />
+					</button>
 				</div>
-				<nav className="sidebar-nav">
-					{dirPairs.length === 0 ? (
-						<div className="sidebar-empty">
-							<p>No dir pairs yet</p>
+			</div>
+			<nav className="sidebar-nav">
+				{dirPairs.length === 0 ? (
+					<div className="sidebar-empty">
+						<p>No dir pairs yet</p>
+						<div className="sidebar-empty-actions">
 							<button className="sidebar-create-btn" onClick={handleCreateDirPair}>
 								Save current pair
 							</button>
+							<button className="sidebar-create-btn" onClick={handleCreateEmptyDirPair}>
+								Create empty pair
+							</button>
 						</div>
-					) : (
-						dirPairs.map((dirPair) => (
-							<div
-								key={dirPair.id}
-								className={`sidebar-item ${
-									dirPair.id === activeDirPairId ? 'active' : ''
-								}`}
+					</div>
+				) : (
+					dirPairs.map((dirPair) => (
+						<div
+							key={dirPair.id}
+							className={`sidebar-item ${dirPair.id === activeDirPairId ? 'active' : ''}`}
+						>
+							<button
+								className="sidebar-item-main"
+								onClick={() => void switchDirPair(dirPair.id)}
 							>
+								<span className="sidebar-item-row">
+									<span className="sidebar-item-label">Left</span>
+									<PathValue
+										path={dirPair.leftPath}
+										comparedPath={dirPair.rightPath}
+									/>
+								</span>
+								<span className="sidebar-item-row">
+									<span className="sidebar-item-label">Right</span>
+									<PathValue
+										path={dirPair.rightPath}
+										comparedPath={dirPair.leftPath}
+									/>
+								</span>
+							</button>
+							<div className="sidebar-item-actions">
 								<button
-									className="sidebar-item-main"
-									onClick={() => void switchDirPair(dirPair.id)}
+									className="sidebar-item-action"
+									onClick={() => handleDeleteDirPair(dirPair.id)}
+									title="Delete"
+									aria-label={`Delete ${dirPair.leftPath || '/'} | ${dirPair.rightPath || '/'}`}
 								>
-									<span className="sidebar-item-row">
-										<span className="sidebar-item-label">Left</span>
-										<PathValue
-											path={dirPair.leftPath}
-											comparedPath={dirPair.rightPath}
-										/>
-									</span>
-									<span className="sidebar-item-row">
-										<span className="sidebar-item-label">Right</span>
-										<PathValue
-											path={dirPair.rightPath}
-											comparedPath={dirPair.leftPath}
-										/>
-									</span>
+									<Trash2 size={14} />
 								</button>
-								<div className="sidebar-item-actions">
-									<button
-										className="sidebar-item-action"
-										onClick={() => openDeleteDialog(dirPair)}
-										title="Delete"
-										aria-label={`Delete ${dirPair.leftPath || '/'} | ${dirPair.rightPath || '/'}`}
-									>
-										<Trash2 size={14} />
-									</button>
-								</div>
 							</div>
-						))
-					)}
-				</nav>
-			</aside>
-
-			<AlertDialog.Root
-				open={deleteOpen}
-				onOpenChange={(open) => {
-					setDeleteOpen(open)
-					if (!open) {
-						setDeleteTarget(null)
-					}
-				}}
-			>
-				<AlertDialog.Portal>
-					<Theme
-						appearance="light"
-						accentColor="indigo"
-						grayColor="slate"
-						panelBackground="solid"
-						radius="large"
-						scaling="100%"
-					>
-						<AlertDialog.Overlay className="dialog-overlay" />
-						<AlertDialog.Content className="dialog-content">
-							<AlertDialog.Title className="dialog-title">Delete Dir Pair</AlertDialog.Title>
-							<AlertDialog.Description className="dialog-description">
-								Left: {deleteTarget?.leftPath || '/'}
-								<br />
-								Right: {deleteTarget?.rightPath || '/'}
-							</AlertDialog.Description>
-							<Flex className="dialog-actions" gap="2" justify="end">
-								<AlertDialog.Cancel asChild>
-									<Button variant="soft" color="gray">
-										Cancel
-									</Button>
-								</AlertDialog.Cancel>
-								<AlertDialog.Action asChild>
-									<Button color="red" onClick={handleDeleteConfirm}>
-										Delete
-									</Button>
-								</AlertDialog.Action>
-							</Flex>
-						</AlertDialog.Content>
-					</Theme>
-				</AlertDialog.Portal>
-			</AlertDialog.Root>
-		</>
+						</div>
+					))
+				)}
+			</nav>
+		</aside>
 	)
 }

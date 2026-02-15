@@ -1,5 +1,4 @@
 import { Toolbar } from '@/components/Toolbar/Toolbar'
-import { TabBar } from '@/components/TabBar/TabBar'
 import { FileList } from '@/components/FileList/FileList'
 import {
 	ExplorerPaneProvider,
@@ -36,7 +35,6 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 		>
 			<ExplorerPaneProvider paneId={paneId}>
 				<Toolbar />
-				<TabBar />
 				<FileList />
 			</ExplorerPaneProvider>
 		</div>

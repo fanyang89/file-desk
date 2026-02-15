@@ -224,7 +224,7 @@ function seedMockData() {
 		"todo.txt",
 		createFile(
 			"todo.txt",
-			`- review PR preview\n- verify upload flow\n- test tab sorting\n`,
+			`- review PR preview\n- verify upload flow\n- test pane sorting\n`,
 		),
 	);
 	notes.children.set(
