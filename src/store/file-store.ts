@@ -133,6 +133,16 @@ function resolvePaneId(state: FileStoreState, paneId?: PaneId): PaneId {
 	return paneId ?? state.activePaneId
 }
 
+function findPaneIdByTabId(state: FileStoreState, tabId: string): PaneId | null {
+	for (const paneId of Object.keys(state.panes) as PaneId[]) {
+		if (state.panes[paneId].tabs.some((tab) => tab.id === tabId)) {
+			return paneId
+		}
+	}
+
+	return null
+}
+
 const useFileStoreBase = create<FileStoreState>((set, get) => ({
 	panes: {
 		left: createInitialPaneState(),
@@ -234,7 +244,6 @@ const useFileStoreBase = create<FileStoreState>((set, get) => ({
 		set((state) => {
 			const currentPane = state.panes[resolvedPaneId]
 			return {
-				activePaneId: resolvedPaneId,
 				panes: {
 					...state.panes,
 					[resolvedPaneId]: {
@@ -298,8 +307,10 @@ const useFileStoreBase = create<FileStoreState>((set, get) => ({
 	},
 
 	refreshTab: async (tabId, paneId) => {
-		const resolvedPaneId = resolvePaneId(get(), paneId)
-		const pane = get().panes[resolvedPaneId]
+		const state = get()
+		const resolvedPaneId =
+			paneId ?? findPaneIdByTabId(state, tabId) ?? state.activePaneId
+		const pane = state.panes[resolvedPaneId]
 		const tab = pane.tabs.find((t) => t.id === tabId)
 		if (!tab) return
 
