@@ -47,6 +47,12 @@ interface CreateCopyMoveTaskInput {
 	sourcePath: string;
 	targetPath: string;
 	names: string[];
+	overwriteNames: string[];
+}
+
+interface CopyMoveTaskPayload {
+	names: string[];
+	overwriteNames: string[];
 }
 
 interface TaskRuntimeState {
@@ -73,13 +79,37 @@ if (!globalThis.__fileDeskTaskRuntime) {
 	globalThis.__fileDeskTaskRuntime = runtime;
 }
 
-function parseNames(namesJson: string): string[] {
+function parseTaskPayload(namesJson: string): CopyMoveTaskPayload {
 	try {
 		const value = JSON.parse(namesJson) as unknown;
-		if (!Array.isArray(value)) return [];
-		return value.filter((item): item is string => typeof item === "string");
+		if (Array.isArray(value)) {
+			return {
+				names: value.filter((item): item is string => typeof item === "string"),
+				overwriteNames: [],
+			};
+		}
+
+		if (!value || typeof value !== "object") {
+			return { names: [], overwriteNames: [] };
+		}
+
+		const parsed = value as {
+			names?: unknown;
+			overwriteNames?: unknown;
+		};
+
+		const names = Array.isArray(parsed.names)
+			? parsed.names.filter((item): item is string => typeof item === "string")
+			: [];
+		const overwriteNames = Array.isArray(parsed.overwriteNames)
+			? parsed.overwriteNames.filter(
+					(item): item is string => typeof item === "string",
+				)
+			: [];
+
+		return { names, overwriteNames };
 	} catch {
-		return [];
+		return { names: [], overwriteNames: [] };
 	}
 }
 
@@ -113,7 +143,7 @@ function toTaskDto(task: Task): TaskDto {
 		operation: toPublicOperation(task.operation),
 		sourcePath: task.sourcePath,
 		targetPath: task.targetPath,
-		names: parseNames(task.namesJson),
+		names: parseTaskPayload(task.namesJson).names,
 		status: toPublicStatus(task.status),
 		processedItems: task.processedItems,
 		totalItems: task.totalItems,
@@ -141,6 +171,14 @@ function sanitizeNames(names: string[]): string[] {
 	}
 
 	return uniqueNames;
+}
+
+function sanitizeOverwriteNames(
+	overwriteNames: string[],
+	allowedNames: Set<string>,
+): string[] {
+	const uniqueOverwriteNames = sanitizeNames(overwriteNames);
+	return uniqueOverwriteNames.filter((name) => allowedNames.has(name));
 }
 
 async function ensureDatabaseReady(): Promise<void> {
@@ -235,7 +273,9 @@ async function executeTask(taskId: string): Promise<void> {
 		return;
 	}
 
-	const names = parseNames(task.namesJson);
+	const payload = parseTaskPayload(task.namesJson);
+	const names = payload.names;
+	const overwriteNames = payload.overwriteNames;
 	const operation: CopyMoveOperation =
 		task.operation === TaskOperation.COPY ? "copy" : "move";
 
@@ -245,6 +285,7 @@ async function executeTask(taskId: string): Promise<void> {
 			sourcePath: task.sourcePath,
 			targetPath: task.targetPath,
 			names,
+			overwriteNames,
 			onProgress: async (progress) => {
 				await prisma.task.update({
 					where: { id: task.id },
@@ -338,10 +379,15 @@ export async function createCopyMoveTask({
 	sourcePath,
 	targetPath,
 	names,
+	overwriteNames,
 }: CreateCopyMoveTaskInput): Promise<TaskDto> {
 	await startTaskRuntime();
 
 	const normalizedNames = sanitizeNames(names);
+	const normalizedOverwriteNames = sanitizeOverwriteNames(
+		overwriteNames,
+		new Set(normalizedNames),
+	);
 	if (normalizedNames.length === 0) {
 		throw new Error("No files selected");
 	}
@@ -352,7 +398,10 @@ export async function createCopyMoveTask({
 			operation: operation === "copy" ? TaskOperation.COPY : TaskOperation.MOVE,
 			sourcePath,
 			targetPath,
-			namesJson: JSON.stringify(normalizedNames),
+			namesJson: JSON.stringify({
+				names: normalizedNames,
+				overwriteNames: normalizedOverwriteNames,
+			}),
 			totalItems: normalizedNames.length,
 		},
 	});

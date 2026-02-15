@@ -16,6 +16,7 @@ interface RunCopyMoveTaskInput {
 	sourcePath: string;
 	targetPath: string;
 	names: string[];
+	overwriteNames?: string[];
 	onProgress?: (progress: CopyMoveProgress) => Promise<void> | void;
 	shouldCancel?: () => Promise<boolean> | boolean;
 }
@@ -47,6 +48,16 @@ async function pathExists(filePath: string): Promise<boolean> {
 	} catch {
 		return false;
 	}
+}
+
+async function removeNode(filePath: string): Promise<void> {
+	const stat = await fs.lstat(filePath);
+	if (stat.isDirectory()) {
+		await fs.rm(filePath, { recursive: true, force: false });
+		return;
+	}
+
+	await fs.unlink(filePath);
 }
 
 function isSubPath(parentPath: string, candidatePath: string): boolean {
@@ -98,11 +109,67 @@ async function moveNode(
 	}
 }
 
+async function createBackupPath(targetAbsPath: string, name: string): Promise<string> {
+	const targetDirAbsPath = path.dirname(targetAbsPath);
+	let attempt = 0;
+
+	while (true) {
+		const candidateName = `.${name}.file-desk-backup-${Date.now()}-${attempt}`;
+		const candidateAbsPath = path.join(targetDirAbsPath, candidateName);
+		if (!(await pathExists(candidateAbsPath))) {
+			return candidateAbsPath;
+		}
+		attempt += 1;
+	}
+}
+
+async function transferWithOverwrite({
+	operation,
+	sourceAbsPath,
+	targetAbsPath,
+	isDirectory,
+	name,
+}: {
+	operation: CopyMoveOperation;
+	sourceAbsPath: string;
+	targetAbsPath: string;
+	isDirectory: boolean;
+	name: string;
+}): Promise<void> {
+	const backupAbsPath = await createBackupPath(targetAbsPath, name);
+	await fs.rename(targetAbsPath, backupAbsPath);
+
+	try {
+		if (operation === "copy") {
+			await copyNode(sourceAbsPath, targetAbsPath, isDirectory);
+		} else {
+			await moveNode(sourceAbsPath, targetAbsPath, isDirectory);
+		}
+
+		await removeNode(backupAbsPath);
+	} catch (err) {
+		try {
+			if (await pathExists(targetAbsPath)) {
+				await removeNode(targetAbsPath);
+			}
+		} catch {
+			// Ignore rollback cleanup failure and continue restoring backup.
+		}
+
+		if (await pathExists(backupAbsPath)) {
+			await fs.rename(backupAbsPath, targetAbsPath);
+		}
+
+		throw err;
+	}
+}
+
 export async function runCopyMoveTask({
 	operation,
 	sourcePath,
 	targetPath,
 	names,
+	overwriteNames = [],
 	onProgress,
 	shouldCancel,
 }: RunCopyMoveTaskInput): Promise<void> {
@@ -120,6 +187,7 @@ export async function runCopyMoveTask({
 	}
 
 	const uniqueNames = Array.from(new Set(names.map(assertValidName)));
+	const overwriteNameSet = new Set(overwriteNames.map(assertValidName));
 	if (uniqueNames.length === 0) {
 		throw new Error("No files selected");
 	}
@@ -149,10 +217,6 @@ export async function runCopyMoveTask({
 			throw new Error(`"${name}" does not exist`);
 		}
 
-		if (await pathExists(targetAbsPath)) {
-			throw new Error(`"${name}" already exists in target directory`);
-		}
-
 		const sourceStat = await fs.lstat(sourceAbsPath);
 		if (sourceStat.isSymbolicLink()) {
 			throw new Error(`Symbolic links are not supported: "${name}"`);
@@ -162,7 +226,20 @@ export async function runCopyMoveTask({
 			throw new Error(`Cannot ${operation} "${name}" into its own subdirectory`);
 		}
 
-		if (operation === "copy") {
+		const targetExists = await pathExists(targetAbsPath);
+		if (targetExists && !overwriteNameSet.has(name)) {
+			throw new Error(`"${name}" already exists in target directory`);
+		}
+
+		if (targetExists) {
+			await transferWithOverwrite({
+				operation,
+				sourceAbsPath,
+				targetAbsPath,
+				isDirectory: sourceStat.isDirectory(),
+				name,
+			});
+		} else if (operation === "copy") {
 			await copyNode(sourceAbsPath, targetAbsPath, sourceStat.isDirectory());
 		} else {
 			await moveNode(sourceAbsPath, targetAbsPath, sourceStat.isDirectory());

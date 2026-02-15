@@ -152,7 +152,9 @@ interface RunCopyMoveTaskOptions {
 	sourcePath: string
 	sourcePaneId: PaneId
 	targetPaneId?: PaneId
+	targetPath?: string
 	names: string[]
+	overwriteNames?: string[]
 	showToast: ShowToast
 }
 
@@ -161,7 +163,9 @@ export async function runCopyMoveTask({
 	sourcePath,
 	sourcePaneId,
 	targetPaneId,
+	targetPath,
 	names,
+	overwriteNames,
 	showToast,
 }: RunCopyMoveTaskOptions): Promise<void> {
 	if (names.length === 0) {
@@ -170,9 +174,10 @@ export async function runCopyMoveTask({
 	}
 
 	const resolvedTargetPaneId = targetPaneId ?? getTargetPaneId(sourcePaneId)
-	const targetPath = getPaneCurrentPath(resolvedTargetPaneId)
+	const resolvedTargetPath =
+		targetPath ?? getPaneCurrentPath(resolvedTargetPaneId)
 
-	if (sourcePath === targetPath) {
+	if (sourcePath === resolvedTargetPath) {
 		showToast('Source and target directories cannot be the same', 'error')
 		return
 	}
@@ -181,8 +186,9 @@ export async function runCopyMoveTask({
 		const { taskId } = await createCopyMoveTask(
 			operation,
 			sourcePath,
-			targetPath,
+			resolvedTargetPath,
 			names,
+			{ overwriteNames },
 		)
 
 		showToast(
@@ -208,7 +214,7 @@ export async function runCopyMoveTask({
 
 		if (status === 'completed') {
 			showToast(
-				`${operation === 'copy' ? 'Copied' : 'Moved'} ${names.length} items to ${formatPathForToast(targetPath)}`,
+				`${operation === 'copy' ? 'Copied' : 'Moved'} ${names.length} items to ${formatPathForToast(resolvedTargetPath)}`,
 			)
 			return
 		}

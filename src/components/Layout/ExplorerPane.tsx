@@ -9,7 +9,6 @@ import {
 	type PaneId,
 } from '@/store/file-store'
 import {
-	deleteEntry,
 	listFiles,
 	uploadFileItems,
 	type UploadFileItem,
@@ -189,31 +188,20 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 
 	const executePaneTransfer = async ({
 		names,
-		skipNames,
-		deleteNames,
+		overwriteNames,
 		sourcePath,
 		sourcePaneId,
 		targetPath,
 		operation,
 	}: {
 		names: string[]
-		skipNames: string[]
-		deleteNames: string[]
+		overwriteNames: string[]
 		sourcePath: string
 		sourcePaneId: PaneId
 		targetPath: string
 		operation: TaskOperation
 	}) => {
-		const skipNameSet = new Set(skipNames)
-		const transferNames = names.filter((name) => !skipNameSet.has(name))
-
-		if (deleteNames.length > 0) {
-			await Promise.all(
-				deleteNames.map((name) => deleteEntry(targetPath, name)),
-			)
-		}
-
-		if (transferNames.length === 0) {
+		if (names.length === 0) {
 			showToast('All selected items already exist in target directory', 'error')
 			return
 		}
@@ -223,7 +211,9 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 			sourcePath,
 			sourcePaneId,
 			targetPaneId: paneId,
-			names: transferNames,
+			targetPath,
+			names,
+			overwriteNames,
 			showToast,
 		})
 	}
@@ -233,14 +223,21 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 
 		setTransferBusy(true)
 		try {
-			const deleteNames =
+			const conflictingNameSet = new Set(
+				pendingTransferConflict.conflictingNames,
+			)
+			const names =
+				strategy === 'skip'
+					? pendingTransferConflict.names.filter(
+							(name) => !conflictingNameSet.has(name),
+						)
+					: pendingTransferConflict.names
+			const overwriteNames =
 				strategy === 'overwrite' ? pendingTransferConflict.conflictingNames : []
-			const skipNames =
-				strategy === 'skip' ? pendingTransferConflict.conflictingNames : []
+
 			await executePaneTransfer({
-				names: pendingTransferConflict.names,
-				skipNames,
-				deleteNames,
+				names,
+				overwriteNames,
 				sourcePath: pendingTransferConflict.sourcePath,
 				sourcePaneId: pendingTransferConflict.sourcePaneId,
 				targetPath: pendingTransferConflict.targetPath,
@@ -388,8 +385,7 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 
 			await executePaneTransfer({
 				names,
-				skipNames: [],
-				deleteNames: [],
+				overwriteNames: [],
 				sourcePath: payload.sourcePath,
 				sourcePaneId: payload.sourcePaneId,
 				targetPath,
