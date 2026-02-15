@@ -534,9 +534,20 @@ const scopedActionMap: Record<PaneId, ScopedActions> = {
 	right: createScopedActions('right'),
 }
 
+const scopedStateCache = new WeakMap<
+	FileStoreState,
+	Partial<Record<PaneId, FileStore>>
+>()
+
 function getScopedState(state: FileStoreState, paneId: PaneId): FileStore {
+	const cachedPaneStates = scopedStateCache.get(state)
+	const cachedScopedState = cachedPaneStates?.[paneId]
+	if (cachedScopedState) {
+		return cachedScopedState
+	}
+
 	const pane = state.panes[paneId]
-	return {
+	const scopedState: FileStore = {
 		tabs: pane.tabs,
 		activeTabId: pane.activeTabId,
 		viewMode: pane.viewMode,
@@ -546,6 +557,14 @@ function getScopedState(state: FileStoreState, paneId: PaneId): FileStore {
 		activePaneId: state.activePaneId,
 		...scopedActionMap[paneId],
 	}
+
+	if (cachedPaneStates) {
+		cachedPaneStates[paneId] = scopedState
+	} else {
+		scopedStateCache.set(state, { [paneId]: scopedState })
+	}
+
+	return scopedState
 }
 
 type StoreSelector<T> = (state: FileStore) => T
