@@ -264,6 +264,7 @@ export async function createCopyMoveTask(
 		},
 		fallbackReason: "POST /api/tasks/copy-move",
 		errorFallback: "Failed to create task",
+		fallbackOnNotFound: false,
 		mockValue: () =>
 			mockCreateCopyMoveTask({ operation, sourcePath, targetPath, names }),
 	});
@@ -285,6 +286,7 @@ export async function listTasks(limit = 50): Promise<ListTasksResponse> {
 		url: `/api/tasks?${query.toString()}`,
 		fallbackReason: "GET /api/tasks",
 		errorFallback: "Failed to list tasks",
+		fallbackOnNotFound: false,
 		mockValue: () => mockListTasks(limit),
 	});
 }
