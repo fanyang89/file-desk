@@ -262,7 +262,6 @@ async function executeTask(taskId: string): Promise<void> {
 			where: {
 				id: task.id,
 				status: TaskStatus.RUNNING,
-				cancelRequested: false,
 			},
 			data: {
 				status: TaskStatus.COMPLETED,
@@ -275,25 +274,7 @@ async function executeTask(taskId: string): Promise<void> {
 		});
 
 		if (completionUpdate.count === 0) {
-			const currentTask = await prisma.task.findUnique({
-				where: { id: task.id },
-				select: { status: true, cancelRequested: true },
-			});
-
-			if (
-				currentTask?.status === TaskStatus.RUNNING &&
-				currentTask.cancelRequested
-			) {
-				await prisma.task.update({
-					where: { id: task.id },
-					data: {
-						status: TaskStatus.CANCELLED,
-						finishedAt: new Date(),
-						currentItem: null,
-						error: null,
-					},
-				});
-			}
+			return;
 		}
 	} catch (err) {
 		if (err instanceof TaskCancelledError) {
@@ -392,7 +373,18 @@ export async function listTasks(limit = 50): Promise<TaskDto[]> {
 		orderBy: { createdAt: "desc" },
 		take: limit,
 	});
-	return tasks.map(toTaskDto);
+
+	const runningTasks = await prisma.task.findMany({
+		where: { status: TaskStatus.RUNNING },
+		orderBy: { createdAt: "asc" },
+	});
+
+	const knownTaskIds = new Set(tasks.map((task) => task.id));
+	const missingRunningTasks = runningTasks.filter(
+		(task) => !knownTaskIds.has(task.id),
+	);
+
+	return [...missingRunningTasks, ...tasks].map(toTaskDto);
 }
 
 export async function cancelTask(taskId: string): Promise<boolean> {
