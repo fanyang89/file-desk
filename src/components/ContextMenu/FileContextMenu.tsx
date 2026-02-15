@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ContextMenu } from "radix-ui";
 import { Theme } from "@radix-ui/themes";
 import {
@@ -45,29 +45,7 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 	const [renameTargetPath, setRenameTargetPath] = useState<string | null>(null);
 	const [deleteTargetPath, setDeleteTargetPath] = useState<string | null>(null);
 
-	const currentEntryPathSet = useMemo(
-		() => new Set(entries.map((item) => item.path)),
-		[entries],
-	);
-
-	const transferCandidatePaths = useMemo(() => {
-		if (selectedPaths.has(entry.path)) {
-			return selectedPaths;
-		}
-		return new Set([entry.path]);
-	}, [entry.path, selectedPaths]);
-
-	const transferSelection = useMemo(
-		() =>
-			resolveTransferNames({
-				sourcePath: currentPath,
-				candidatePaths: transferCandidatePaths,
-				currentEntryPathSet,
-			}),
-		[currentEntryPathSet, currentPath, transferCandidatePaths],
-	);
-
-	const canTransfer = !loading && !transferBusy && transferSelection.names.length > 0;
+	const canTransfer = !loading && !transferBusy;
 
 	const handleDownload = () => {
 		const url = getDownloadUrl(entry.path);
@@ -89,9 +67,17 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 
 	const handleTransfer = async (operation: "copy" | "move") => {
 		if (transferBusy) return;
+		const transferCandidatePaths = selectedPaths.has(entry.path)
+			? selectedPaths
+			: new Set([entry.path]);
+		const currentEntryPathSet = new Set(entries.map((item) => item.path));
 
 		const { names, skippedOutsideCurrentDir, skippedMissingInCurrentDir } =
-			transferSelection;
+			resolveTransferNames({
+				sourcePath: currentPath,
+				candidatePaths: transferCandidatePaths,
+				currentEntryPathSet,
+			});
 
 		if (names.length === 0) {
 			if (skippedMissingInCurrentDir > 0) {
