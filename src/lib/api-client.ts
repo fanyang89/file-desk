@@ -80,8 +80,38 @@ const VERCEL_FALLBACK_MARKERS = [
 async function shouldFallbackToMockResponse(
 	res: Response,
 	fallbackOnNotFound: boolean,
+	nonFallbackNotFoundMessages: string[],
 ): Promise<boolean> {
-	if (shouldFallbackToMockStatus(res.status, fallbackOnNotFound)) return true;
+	if (res.status === 404 && fallbackOnNotFound) {
+		if (nonFallbackNotFoundMessages.length === 0) return true;
+
+		const normalizedMarkers = nonFallbackNotFoundMessages.map((message) =>
+			message.toLowerCase(),
+		);
+
+		let bodyMessage = "";
+		try {
+			const json = (await res.clone().json()) as {
+				error?: string;
+				message?: string;
+			};
+			bodyMessage = `${json.error ?? ""} ${json.message ?? ""}`.toLowerCase();
+		} catch {
+			try {
+				bodyMessage = (await res.clone().text()).slice(0, 1024).toLowerCase();
+			} catch {
+				bodyMessage = "";
+			}
+		}
+
+		if (normalizedMarkers.some((marker) => bodyMessage.includes(marker))) {
+			return false;
+		}
+
+		return true;
+	}
+
+	if (shouldFallbackToMockStatus(res.status, false)) return true;
 
 	// In preview environments, treat Vercel platform failures/protection pages as API unavailable.
 	if (!CAN_USE_MOCK || !isVercelDeploymentHost()) return false;
@@ -131,6 +161,7 @@ interface RequestWithMockOptions<T> {
 	errorFallback: string;
 	mockValue: () => T | Promise<T>;
 	fallbackOnNotFound?: boolean;
+	nonFallbackNotFoundMessages?: string[];
 }
 
 async function requestJsonWithMock<T>({
@@ -140,6 +171,7 @@ async function requestJsonWithMock<T>({
 	errorFallback,
 	mockValue,
 	fallbackOnNotFound = true,
+	nonFallbackNotFoundMessages = [],
 }: RequestWithMockOptions<T>): Promise<T> {
 	if (mockModeEnabled) {
 		return mockValue();
@@ -159,7 +191,11 @@ async function requestJsonWithMock<T>({
 	if (!res.ok) {
 		if (
 			CAN_USE_MOCK &&
-			(await shouldFallbackToMockResponse(res, fallbackOnNotFound))
+			(await shouldFallbackToMockResponse(
+				res,
+				fallbackOnNotFound,
+				nonFallbackNotFoundMessages,
+			))
 		) {
 			enableMockMode(`${fallbackReason} -> ${res.status}`);
 			return mockValue();
@@ -264,7 +300,7 @@ export async function createCopyMoveTask(
 		},
 		fallbackReason: "POST /api/tasks/copy-move",
 		errorFallback: "Failed to create task",
-		fallbackOnNotFound: false,
+		fallbackOnNotFound: true,
 		mockValue: () =>
 			mockCreateCopyMoveTask({ operation, sourcePath, targetPath, names }),
 	});
@@ -275,7 +311,8 @@ export async function getTask(taskId: string): Promise<GetTaskResponse> {
 		url: `/api/tasks/${encodeURIComponent(taskId)}`,
 		fallbackReason: "GET /api/tasks/:id",
 		errorFallback: "Failed to get task",
-		fallbackOnNotFound: false,
+		fallbackOnNotFound: true,
+		nonFallbackNotFoundMessages: ["task not found"],
 		mockValue: () => mockGetTask(taskId),
 	});
 }
@@ -286,7 +323,7 @@ export async function listTasks(limit = 50): Promise<ListTasksResponse> {
 		url: `/api/tasks?${query.toString()}`,
 		fallbackReason: "GET /api/tasks",
 		errorFallback: "Failed to list tasks",
-		fallbackOnNotFound: false,
+		fallbackOnNotFound: true,
 		mockValue: () => mockListTasks(limit),
 	});
 }
@@ -300,7 +337,8 @@ export async function cancelTask(taskId: string): Promise<SuccessResponse> {
 		},
 		fallbackReason: "POST /api/tasks/:id/cancel",
 		errorFallback: "Failed to cancel task",
-		fallbackOnNotFound: false,
+		fallbackOnNotFound: true,
+		nonFallbackNotFoundMessages: ["task not found"],
 		mockValue: () => mockCancelTask(taskId),
 	});
 }
@@ -376,7 +414,7 @@ export async function fetchTextContent(
 		if (
 			CAN_USE_MOCK &&
 			hasMockEntry(filePath) &&
-			(await shouldFallbackToMockResponse(res, true))
+			(await shouldFallbackToMockResponse(res, true, []))
 		) {
 			enableMockMode(`GET /api/preview -> ${res.status}`);
 			return mockFetchTextContent(filePath);
