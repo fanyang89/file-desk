@@ -525,7 +525,7 @@ function normalizeUploadRelativePath(relativePath: string, fallbackName: string)
 	const segments = raw
 		.split("/")
 		.filter(Boolean)
-		.map((segment) => assertValidPathSegment(segment.trim()));
+		.map((segment) => assertValidPathSegment(segment));
 
 	if (segments.length === 0) {
 		segments.push(assertValidPathSegment(assertValidName(fallbackName)));

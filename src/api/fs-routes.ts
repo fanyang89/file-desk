@@ -300,21 +300,30 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 				}
 
 				const writePromise = (async () => {
-					const savePath = safePath(path.join(dirPath, relativePath));
-					if (!(savePath === absDir || savePath.startsWith(`${absDir}${path.sep}`))) {
-						throw new Error("Invalid upload path");
+					let startedStreaming = false;
+					try {
+						const savePath = safePath(path.join(dirPath, relativePath));
+						if (!(savePath === absDir || savePath.startsWith(`${absDir}${path.sep}`))) {
+							throw new Error("Invalid upload path");
+						}
+
+						await fs.mkdir(path.dirname(savePath), { recursive: true });
+						await new Promise<void>((resolve, reject) => {
+							const writeStream = createWriteStream(savePath);
+
+							writeStream.on("error", reject);
+							writeStream.on("finish", resolve);
+							file.on("error", reject);
+
+							startedStreaming = true;
+							file.pipe(writeStream);
+						});
+					} catch (err) {
+						if (!startedStreaming) {
+							file.resume();
+						}
+						throw err;
 					}
-
-					await fs.mkdir(path.dirname(savePath), { recursive: true });
-					await new Promise<void>((resolve, reject) => {
-						const writeStream = createWriteStream(savePath);
-
-						writeStream.on("error", reject);
-						writeStream.on("finish", resolve);
-						file.on("error", reject);
-
-						file.pipe(writeStream);
-					});
 				})()
 					.then(() => null)
 					.catch((err) => {
