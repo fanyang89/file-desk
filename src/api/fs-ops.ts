@@ -109,12 +109,12 @@ async function moveNode(
 	}
 }
 
-async function createBackupPath(targetAbsPath: string, name: string): Promise<string> {
+async function createBackupPath(targetAbsPath: string): Promise<string> {
 	const targetDirAbsPath = path.dirname(targetAbsPath);
 	let attempt = 0;
 
 	while (true) {
-		const candidateName = `.${name}.file-desk-backup-${Date.now()}-${attempt}`;
+		const candidateName = `.file-desk-backup-${Date.now().toString(36)}-${attempt.toString(36)}`;
 		const candidateAbsPath = path.join(targetDirAbsPath, candidateName);
 		if (!(await pathExists(candidateAbsPath))) {
 			return candidateAbsPath;
@@ -136,7 +136,7 @@ async function transferWithOverwrite({
 	isDirectory: boolean;
 	name: string;
 }): Promise<void> {
-	const backupAbsPath = await createBackupPath(targetAbsPath, name);
+	const backupAbsPath = await createBackupPath(targetAbsPath);
 	await fs.rename(targetAbsPath, backupAbsPath);
 
 	try {
