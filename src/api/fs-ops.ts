@@ -145,8 +145,6 @@ async function transferWithOverwrite({
 		} else {
 			await moveNode(sourceAbsPath, targetAbsPath, isDirectory);
 		}
-
-		await removeNode(backupAbsPath);
 	} catch (err) {
 		try {
 			if (await pathExists(targetAbsPath)) {
@@ -161,6 +159,14 @@ async function transferWithOverwrite({
 		}
 
 		throw err;
+	}
+
+	try {
+		await removeNode(backupAbsPath);
+	} catch (err) {
+		console.warn(
+			`Failed to clean up overwrite backup for "${name}": ${(err as Error).message}`,
+		);
 	}
 }
 
