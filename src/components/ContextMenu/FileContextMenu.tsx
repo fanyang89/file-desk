@@ -9,6 +9,7 @@ import {
 	FolderOpen,
 	Eye,
 	Scissors,
+	Info,
 } from "lucide-react";
 import type { FileEntry } from "@/types";
 import {
@@ -19,6 +20,7 @@ import {
 import { getDownloadUrl } from "@/lib/api-client";
 import { RenameDialog } from "@/components/Dialogs/RenameDialog";
 import { DeleteConfirmDialog } from "@/components/Dialogs/DeleteConfirmDialog";
+import { PropertiesDialog } from "@/components/Dialogs/PropertiesDialog";
 import { useToast } from "@/components/Toast/useToast";
 import {
 	runCopyMoveTask,
@@ -41,6 +43,7 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 	const { showToast } = useToast();
 	const [renameOpen, setRenameOpen] = useState(false);
 	const [deleteOpen, setDeleteOpen] = useState(false);
+	const [propertiesOpen, setPropertiesOpen] = useState(false);
 	const [transferBusy, setTransferBusy] = useState(false);
 	const [renameTargetPath, setRenameTargetPath] = useState<string | null>(null);
 	const [deleteTargetPath, setDeleteTargetPath] = useState<string | null>(null);
@@ -63,6 +66,10 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 	const handleDeleteOpen = () => {
 		setDeleteTargetPath(currentPath);
 		setDeleteOpen(true);
+	};
+
+	const handlePropertiesOpen = () => {
+		setPropertiesOpen(true);
 	};
 
 	const handleTransfer = async (operation: "copy" | "move") => {
@@ -129,6 +136,10 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 		if (!open) {
 			setDeleteTargetPath(null);
 		}
+	};
+
+	const handlePropertiesOpenChange = (open: boolean) => {
+		setPropertiesOpen(open);
 	};
 
 	return (
@@ -203,6 +214,14 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 								<Trash2 size={14} />
 								<span>Delete</span>
 							</ContextMenu.Item>
+							<ContextMenu.Separator className="context-menu-separator" />
+							<ContextMenu.Item
+								className="context-menu-item"
+								onSelect={handlePropertiesOpen}
+							>
+								<Info size={14} />
+								<span>Properties</span>
+							</ContextMenu.Item>
 						</ContextMenu.Content>
 					</Theme>
 				</ContextMenu.Portal>
@@ -219,6 +238,11 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 				targetPath={deleteTargetPath}
 				open={deleteOpen}
 				onOpenChange={handleDeleteOpenChange}
+			/>
+			<PropertiesDialog
+				entry={entry}
+				open={propertiesOpen}
+				onOpenChange={handlePropertiesOpenChange}
 			/>
 		</>
 	);

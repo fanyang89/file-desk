@@ -17,7 +17,7 @@ interface FileRowProps {
 }
 
 export function FileRow({ entry }: FileRowProps) {
-	const { navigate, selectedPaths, toggleSelection, openPreview } =
+	const { navigate, selectedPaths, toggleSelection, setSelectedPaths, openPreview } =
 		useFileStore();
 	const entries = useFileStore((s) => s.entries);
 	const currentPath = useFileStore(selectCurrentPath);
@@ -36,6 +36,15 @@ export function FileRow({ entry }: FileRowProps) {
 		} else {
 			openPreview(entry);
 		}
+	};
+
+	const handleContextMenu = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (selectedPaths.has(entry.path)) {
+			return;
+		}
+
+		setSelectedPaths(new Set([entry.path]));
 	};
 
 	const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
@@ -68,6 +77,7 @@ export function FileRow({ entry }: FileRowProps) {
 				className={`file-row ${isSelected ? "selected" : ""}`}
 				draggable
 				onClick={handleClick}
+				onContextMenu={handleContextMenu}
 				onDoubleClick={handleDoubleClick}
 				onDragStart={handleDragStart}
 			>
