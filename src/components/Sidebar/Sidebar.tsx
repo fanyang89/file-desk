@@ -3,8 +3,14 @@ import { Popover } from 'radix-ui'
 import { Theme, Tooltip } from '@radix-ui/themes'
 import { FolderPlus, HardDrive, ListTodo, Loader2, Plus, Trash2 } from 'lucide-react'
 import { TaskPanel } from '@/components/Tasks/TaskPanel'
-import { useFileStore, usePanePath } from '@/store/file-store'
-import { listTasks } from '@/lib/api-client'
+import {
+	refreshPaneById,
+	useFileStore,
+	usePanePath,
+} from '@/store/file-store'
+import { emptyTrash, listTasks } from '@/lib/api-client'
+import { useToast } from '@/components/Toast/useToast'
+import { TRASH_FILES_PATH, isTrashPath } from '@/lib/trash'
 import type { BackgroundTask } from '@/types'
 
 const PATH_DIFF_MIN_LENGTH = 18
@@ -111,10 +117,13 @@ function IconHelpTooltip({
 export function Sidebar() {
 	const dirPairs = useFileStore((s) => s.dirPairs)
 	const activeDirPairId = useFileStore((s) => s.activeDirPairId)
+	const activePaneId = useFileStore((s) => s.activePaneId)
+	const navigate = useFileStore((s) => s.navigate)
 	const createDirPair = useFileStore((s) => s.createDirPair)
 	const createEmptyDirPair = useFileStore((s) => s.createEmptyDirPair)
 	const switchDirPair = useFileStore((s) => s.switchDirPair)
 	const deleteDirPair = useFileStore((s) => s.deleteDirPair)
+	const { showToast } = useToast()
 	const leftPath = usePanePath('left')
 	const rightPath = usePanePath('right')
 	const [activeTasks, setActiveTasks] = useState<BackgroundTask[]>([])
@@ -167,6 +176,9 @@ export function Sidebar() {
 		: primaryActiveTask
 			? formatTaskOperation(primaryActiveTask)
 			: 'Idle'
+	const [emptyingTrash, setEmptyingTrash] = useState(false)
+	const activePanePath = activePaneId === 'left' ? leftPath : rightPath
+	const isTrashActive = isTrashPath(activePanePath)
 
 	const handleCreateDirPair = () => {
 		createDirPair(leftPath, rightPath)
@@ -174,6 +186,36 @@ export function Sidebar() {
 
 	const handleCreateEmptyDirPair = () => {
 		void createEmptyDirPair()
+	}
+
+	const handleOpenTrash = async () => {
+		try {
+			await navigate(TRASH_FILES_PATH)
+		} catch (err) {
+			showToast((err as Error).message, 'error')
+		}
+	}
+
+	const handleEmptyTrash = async () => {
+		if (emptyingTrash) return
+		const confirmed = window.confirm(
+			'Empty trash permanently deletes all items. Continue?',
+		)
+		if (!confirmed) return
+
+		setEmptyingTrash(true)
+		try {
+			await emptyTrash()
+			await Promise.all([
+				isTrashPath(leftPath) ? refreshPaneById('left') : Promise.resolve(),
+				isTrashPath(rightPath) ? refreshPaneById('right') : Promise.resolve(),
+			])
+			showToast('Trash emptied')
+		} catch (err) {
+			showToast((err as Error).message, 'error')
+		} finally {
+			setEmptyingTrash(false)
+		}
 	}
 
 	return (
@@ -251,6 +293,26 @@ export function Sidebar() {
 					</Popover.Portal>
 				</Popover.Root>
 				<nav className='sidebar-nav'>
+					<div className={`sidebar-item ${isTrashActive ? 'active' : ''}`}>
+						<button className='sidebar-item-main' onClick={() => void handleOpenTrash()}>
+							<span className='sidebar-item-row'>
+								<span className='sidebar-item-label'>System</span>
+								<span className='sidebar-item-path'>Trash</span>
+							</span>
+						</button>
+						<div className='sidebar-item-actions'>
+							<button
+								className='sidebar-item-action'
+								onClick={() => void handleEmptyTrash()}
+								title='Empty trash'
+								aria-label='Empty trash'
+								disabled={emptyingTrash}
+							>
+								<Trash2 size={14} />
+							</button>
+						</div>
+					</div>
+
 					{dirPairs.length === 0 ? (
 						<div className='sidebar-empty'>
 							<p>No dir pairs yet</p>

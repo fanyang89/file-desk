@@ -5,11 +5,13 @@ import {
 	mockRenameEntry,
 	mockGetDeleteImpact,
 	mockDeleteEntry,
+	mockEmptyTrash,
 	mockCreateCopyMoveTask,
 	mockGetTask,
 	mockListTasks,
 	mockClearCompletedTasks,
 	mockCancelTask,
+	mockRestoreTrashEntry,
 	mockUploadFiles,
 	mockUploadFileItems,
 	getMockDownloadUrl,
@@ -304,6 +306,35 @@ export async function deleteEntry(
 		fallbackReason: "DELETE /api/delete",
 		errorFallback: "Failed to delete",
 		mockValue: () => mockDeleteEntry(path, name),
+	});
+}
+
+export async function restoreTrashEntry(
+	trashPath: string,
+): Promise<SuccessResponse & { restoredPath: string }> {
+	return requestJsonWithMock({
+		url: "/api/trash/restore",
+		init: {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ trashPath }),
+		},
+		fallbackReason: "POST /api/trash/restore",
+		errorFallback: "Failed to restore from trash",
+		mockValue: () => mockRestoreTrashEntry(trashPath),
+	});
+}
+
+export async function emptyTrash(): Promise<SuccessResponse> {
+	return requestJsonWithMock({
+		url: "/api/trash/empty",
+		init: {
+			method: "DELETE",
+			headers: { "Content-Type": "application/json" },
+		},
+		fallbackReason: "DELETE /api/trash/empty",
+		errorFallback: "Failed to empty trash",
+		mockValue: () => mockEmptyTrash(),
 	});
 }
 

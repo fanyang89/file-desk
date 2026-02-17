@@ -7,6 +7,17 @@ import os from "os";
 import Busboy from "busboy";
 import sharp from "sharp";
 import { safePath, relPath, getMimeType, isImageFile } from "./fs-utils";
+import {
+	createAvailableTrashPath,
+	ensureTrashDirectories,
+	emptyTrash,
+	isPathInsideTrash,
+	isPathInsideTrashFiles,
+	joinRelativePath as joinTrashRelativePath,
+	readTrashMetadata,
+	removeTrashMetadata,
+	writeTrashMetadata,
+} from "./trash-utils";
 
 const THUMBNAIL_SIZE = 300;
 const THUMBNAIL_CACHE_DIR = path.join(os.tmpdir(), "file-desk-thumbnails");
@@ -288,6 +299,7 @@ async function toFileEntry(
 async function collectRecursiveEntries(
 	baseAbsPath: string,
 	imagesOnly: boolean,
+	includeHidden: boolean,
 ): Promise<FileEntry[]> {
 	const files: FileEntry[] = [];
 
@@ -295,7 +307,8 @@ async function collectRecursiveEntries(
 		const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
 		for (const entry of entries) {
-			if (entry.name.startsWith(".") || entry.isSymbolicLink()) continue;
+			if ((!includeHidden && entry.name.startsWith(".")) || entry.isSymbolicLink())
+				continue;
 
 			const fullPath = path.join(dirPath, entry.name);
 			if (entry.isDirectory()) {
@@ -328,16 +341,20 @@ export async function handleListFiles(
 		const dirPath = url.searchParams.get("path") || "";
 		const recursive = isTruthyQuery(url.searchParams.get("recursive"));
 		const imagesOnly = isTruthyQuery(url.searchParams.get("imagesOnly"));
+		const includeHidden = isPathInsideTrashFiles(dirPath);
+		if (isPathInsideTrash(dirPath)) {
+			await ensureTrashDirectories();
+		}
 		const absPath = safePath(dirPath);
 
 		let files: FileEntry[];
 		if (recursive) {
-			files = await collectRecursiveEntries(absPath, imagesOnly);
+			files = await collectRecursiveEntries(absPath, imagesOnly, includeHidden);
 		} else {
 			const entries = await fs.readdir(absPath, { withFileTypes: true });
 			const immediateEntries = await Promise.all(
 				entries
-					.filter((e) => !e.name.startsWith("."))
+					.filter((e) => includeHidden || !e.name.startsWith("."))
 					.map((entry) =>
 						toFileEntry(
 							path.join(absPath, entry.name),
@@ -395,13 +412,101 @@ export async function handleRename(req: IncomingMessage, res: ServerResponse) {
 export async function handleDelete(req: IncomingMessage, res: ServerResponse) {
 	try {
 		const body = (await parseBody(req)) as { path: string; name: string };
-		const target = safePath(path.join(body.path || "", body.name));
-		const stat = await fs.stat(target);
-		if (stat.isDirectory()) {
-			await fs.rm(target, { recursive: true });
-		} else {
-			await fs.unlink(target);
+		const targetRelativePath = joinTrashRelativePath(body.path || "", body.name);
+		const target = safePath(targetRelativePath);
+
+		if (isPathInsideTrash(targetRelativePath)) {
+			const stat = await fs.stat(target);
+			if (stat.isDirectory()) {
+				await fs.rm(target, { recursive: true });
+			} else {
+				await fs.unlink(target);
+			}
+
+			if (isPathInsideTrashFiles(targetRelativePath)) {
+				await removeTrashMetadata(targetRelativePath);
+			}
+
+			sendJson(res, { success: true, permanent: true });
+			return;
 		}
+
+		const trashPath = await createAvailableTrashPath(body.name);
+		await fs.rename(target, safePath(trashPath));
+		await writeTrashMetadata(trashPath, targetRelativePath);
+		sendJson(res, { success: true, movedToTrash: true });
+	} catch (err) {
+		sendError(res, (err as Error).message, 500);
+	}
+}
+
+export async function handleRestoreTrash(
+	req: IncomingMessage,
+	res: ServerResponse,
+) {
+	try {
+		const body = (await parseBody(req)) as { trashPath?: string };
+		if (typeof body.trashPath !== "string" || body.trashPath.length === 0) {
+			sendError(res, "trashPath is required");
+			return;
+		}
+
+		const trashPath = body.trashPath.replace(/\\/g, "/").replace(/^\/+/, "");
+		if (!isPathInsideTrashFiles(trashPath)) {
+			sendError(res, "trashPath must be inside trash files", 400);
+			return;
+		}
+
+		const metadata = await readTrashMetadata(trashPath);
+		if (!metadata) {
+			sendError(res, "Trash metadata not found", 404);
+			return;
+		}
+
+		const targetPath = metadata.originalPath;
+		if (!targetPath) {
+			sendError(res, "Invalid trash metadata", 500);
+			return;
+		}
+
+		if (isPathInsideTrash(targetPath)) {
+			sendError(res, "Cannot restore item to trash path", 400);
+			return;
+		}
+
+		const sourceAbsPath = safePath(trashPath);
+		const targetAbsPath = safePath(targetPath);
+
+		try {
+			await fs.access(sourceAbsPath);
+		} catch {
+			sendError(res, "Trash item no longer exists", 404);
+			return;
+		}
+
+		try {
+			await fs.access(targetAbsPath);
+			sendError(res, `"${path.basename(targetPath)}" already exists`, 409);
+			return;
+		} catch {
+			// Target path does not exist, continue restore.
+		}
+
+		await fs.mkdir(path.dirname(targetAbsPath), { recursive: true });
+		await fs.rename(sourceAbsPath, targetAbsPath);
+		await removeTrashMetadata(trashPath);
+		sendJson(res, { success: true, restoredPath: targetPath });
+	} catch (err) {
+		sendError(res, (err as Error).message, 500);
+	}
+}
+
+export async function handleEmptyTrash(
+	_req: IncomingMessage,
+	res: ServerResponse,
+) {
+	try {
+		await emptyTrash();
 		sendJson(res, { success: true });
 	} catch (err) {
 		sendError(res, (err as Error).message, 500);

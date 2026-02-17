@@ -65,6 +65,17 @@ const IMAGE_EXTENSIONS = new Set([
 
 const root = createDir("");
 
+const TRASH_ROOT_NAME = ".file-desk-trash";
+const TRASH_FILES_PATH = `${TRASH_ROOT_NAME}/files`;
+const TRASH_META_PATH = `${TRASH_ROOT_NAME}/meta`;
+
+interface MockTrashMetadata {
+	originalPath: string;
+	deletedAt: string;
+}
+
+const mockTrashMetadataByPath = new Map<string, MockTrashMetadata>();
+
 function nowIso(): string {
 	return new Date().toISOString();
 }
@@ -138,6 +149,22 @@ function splitPath(path: string): string[] {
 	return normalized ? normalized.split("/") : [];
 }
 
+function isPathInsideTrash(filePath: string): boolean {
+	const normalizedPath = normalizePath(filePath);
+	return (
+		normalizedPath === TRASH_ROOT_NAME ||
+		normalizedPath.startsWith(`${TRASH_ROOT_NAME}/`)
+	);
+}
+
+function isPathInsideTrashFiles(filePath: string): boolean {
+	const normalizedPath = normalizePath(filePath);
+	return (
+		normalizedPath === TRASH_FILES_PATH ||
+		normalizedPath.startsWith(`${TRASH_FILES_PATH}/`)
+	);
+}
+
 function getNode(path: string): MockNode | null {
 	const segments = splitPath(path);
 	let current: MockNode = root;
@@ -153,6 +180,34 @@ function getNode(path: string): MockNode | null {
 function getDir(path: string): MockDir | null {
 	const node = getNode(path);
 	return node?.kind === "dir" ? node : null;
+}
+
+function getOrCreateDirByPath(dirPath: string): MockDir {
+	const segments = splitPath(dirPath);
+	let currentDir = root;
+
+	for (const segment of segments) {
+		const nextNode = currentDir.children.get(segment);
+		if (!nextNode) {
+			const nextDir = createDir(segment);
+			currentDir.children.set(segment, nextDir);
+			currentDir = nextDir;
+			continue;
+		}
+
+		if (nextNode.kind !== "dir") {
+			throw new Error(`Path is not a directory: /${dirPath}`);
+		}
+
+		currentDir = nextNode;
+	}
+
+	return currentDir;
+}
+
+function ensureMockTrashDirs(): void {
+	getOrCreateDirByPath(TRASH_FILES_PATH);
+	getOrCreateDirByPath(TRASH_META_PATH);
 }
 
 function touchDir(path: string): void {
@@ -174,6 +229,37 @@ function assertValidTransferName(name: string): string {
 		throw new Error(`Invalid name: "${name}"`);
 	}
 	return name;
+}
+
+function splitNameAndExtension(name: string): {
+	baseName: string;
+	extension: string;
+} {
+	const dotIndex = name.lastIndexOf(".");
+	if (dotIndex <= 0) {
+		return { baseName: name, extension: "" };
+	}
+
+	return {
+		baseName: name.slice(0, dotIndex),
+		extension: name.slice(dotIndex),
+	};
+}
+
+function createUniqueChildName(parentDir: MockDir, entryName: string): string {
+	const { baseName, extension } = splitNameAndExtension(entryName);
+	let attempt = 0;
+
+	while (true) {
+		const candidateName =
+			attempt === 0
+				? `${baseName}${extension}`
+				: `${baseName} (${attempt})${extension}`;
+		if (!parentDir.children.has(candidateName)) {
+			return candidateName;
+		}
+		attempt += 1;
+	}
 }
 
 function getParentPath(filePath: string): string {
@@ -313,6 +399,7 @@ function seedMockData() {
 	root.children.set(projects.name, projects);
 	root.children.set(images.name, images);
 	root.children.set(notes.name, notes);
+	ensureMockTrashDirs();
 }
 
 seedMockData();
@@ -320,6 +407,7 @@ seedMockData();
 interface MockListFilesOptions {
 	recursive?: boolean;
 	imagesOnly?: boolean;
+	includeHidden?: boolean;
 }
 
 export interface MockUploadFileItem {
@@ -334,7 +422,7 @@ function collectListEntries(
 	files: FileEntry[],
 ): void {
 	for (const node of dir.children.values()) {
-		if (node.name.startsWith(".")) continue;
+		if (!options.includeHidden && node.name.startsWith(".")) continue;
 
 		if (node.kind === "dir") {
 			if (!options.imagesOnly) {
@@ -366,9 +454,10 @@ export function mockListFiles(
 	const normalizedPath = normalizePath(path);
 	const dir = getDir(normalizedPath);
 	if (!dir) throw new Error(`Directory not found: /${normalizedPath}`);
+	const includeHidden = isPathInsideTrashFiles(normalizedPath);
 
 	const files: FileEntry[] = [];
-	collectListEntries(dir, normalizedPath, options, files);
+	collectListEntries(dir, normalizedPath, { ...options, includeHidden }, files);
 	return { files, currentPath: normalizedPath, caseSensitiveNames: true };
 }
 
@@ -424,11 +513,107 @@ export function mockDeleteEntry(
 	if (!dir) throw new Error(`Directory not found: /${normalizedPath}`);
 
 	const targetName = assertValidName(name);
-	if (!dir.children.has(targetName))
+	const targetNode = dir.children.get(targetName);
+	if (!targetNode)
 		throw new Error(`"${targetName}" does not exist`);
+	const targetPath = joinPath(normalizedPath, targetName);
 
+	if (isPathInsideTrash(targetPath)) {
+		dir.children.delete(targetName);
+		for (const metadataPath of Array.from(mockTrashMetadataByPath.keys())) {
+			if (
+				metadataPath === targetPath ||
+				metadataPath.startsWith(`${targetPath}/`)
+			) {
+				mockTrashMetadataByPath.delete(metadataPath);
+			}
+		}
+		touchDir(normalizedPath);
+		return { success: true };
+	}
+
+	ensureMockTrashDirs();
+	const trashDir = getDir(TRASH_FILES_PATH);
+	if (!trashDir) {
+		throw new Error("Trash directory is unavailable");
+	}
+
+	const trashName = createUniqueChildName(trashDir, targetName);
 	dir.children.delete(targetName);
+	targetNode.name = trashName;
+	targetNode.modifiedAt = nowIso();
+	trashDir.children.set(trashName, targetNode);
+
+	const trashPath = joinPath(TRASH_FILES_PATH, trashName);
+	mockTrashMetadataByPath.set(trashPath, {
+		originalPath: targetPath,
+		deletedAt: nowIso(),
+	});
+
 	touchDir(normalizedPath);
+	touchDir(TRASH_FILES_PATH);
+	return { success: true };
+}
+
+export function mockRestoreTrashEntry(
+	trashPath: string,
+): { success: boolean; restoredPath: string } {
+	const normalizedTrashPath = normalizePath(trashPath);
+	if (!isPathInsideTrashFiles(normalizedTrashPath)) {
+		throw new Error("trashPath must be inside trash files");
+	}
+
+	const metadata = mockTrashMetadataByPath.get(normalizedTrashPath);
+	if (!metadata) {
+		throw new Error("Trash metadata not found");
+	}
+
+	const trashParentPath = getParentPath(normalizedTrashPath);
+	const trashParentDir = getDir(trashParentPath);
+	if (!trashParentDir) {
+		throw new Error("Trash item no longer exists");
+	}
+
+	const trashName = splitPath(normalizedTrashPath).pop() || "";
+	const node = trashParentDir.children.get(trashName);
+	if (!node) {
+		throw new Error("Trash item no longer exists");
+	}
+
+	const originalPath = normalizePath(metadata.originalPath);
+	const destinationParentPath = getParentPath(originalPath);
+	const destinationName = splitPath(originalPath).pop() || "";
+	if (!destinationName) {
+		throw new Error("Invalid trash metadata");
+	}
+
+	const destinationDir = getOrCreateDirByPath(destinationParentPath);
+	if (destinationDir.children.has(destinationName)) {
+		throw new Error(`"${destinationName}" already exists`);
+	}
+
+	trashParentDir.children.delete(trashName);
+	node.name = destinationName;
+	node.modifiedAt = nowIso();
+	destinationDir.children.set(destinationName, node);
+	mockTrashMetadataByPath.delete(normalizedTrashPath);
+
+	touchDir(trashParentPath);
+	touchDir(destinationParentPath);
+
+	return { success: true, restoredPath: originalPath };
+}
+
+export function mockEmptyTrash(): { success: boolean } {
+	ensureMockTrashDirs();
+	const trashFilesDir = getDir(TRASH_FILES_PATH);
+	if (!trashFilesDir) {
+		throw new Error("Trash directory is unavailable");
+	}
+
+	trashFilesDir.children.clear();
+	trashFilesDir.modifiedAt = nowIso();
+	mockTrashMetadataByPath.clear();
 	return { success: true };
 }
 

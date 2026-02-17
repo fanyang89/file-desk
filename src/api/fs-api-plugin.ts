@@ -5,9 +5,11 @@ import {
 	handleRename,
 	handleDelete,
 	handleDeleteImpact,
+	handleEmptyTrash,
 	handleUpload,
 	handleDownload,
 	handlePreview,
+	handleRestoreTrash,
 	handleThumbnail,
 } from "./fs-routes";
 import {
@@ -41,6 +43,10 @@ export function fsApiPlugin(): Plugin {
 					handleDeleteImpact(req, res);
 				} else if (pathname === "/api/delete" && req.method === "DELETE") {
 					handleDelete(req, res);
+				} else if (pathname === "/api/trash/restore" && req.method === "POST") {
+					handleRestoreTrash(req, res);
+				} else if (pathname === "/api/trash/empty" && req.method === "DELETE") {
+					handleEmptyTrash(req, res);
 				} else if (
 					pathname.startsWith("/api/upload") &&
 					req.method === "POST"
