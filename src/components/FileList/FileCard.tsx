@@ -16,7 +16,7 @@ interface FileCardProps {
 }
 
 export function FileCard({ entry }: FileCardProps) {
-	const { navigate, selectedPaths, toggleSelection, openPreview } =
+	const { navigate, selectedPaths, toggleSelection, setSelectedPaths, openPreview } =
 		useFileStore();
 	const entries = useFileStore((s) => s.entries);
 	const currentPath = useFileStore(selectCurrentPath);
@@ -35,6 +35,15 @@ export function FileCard({ entry }: FileCardProps) {
 		} else {
 			openPreview(entry);
 		}
+	};
+
+	const handleContextMenu = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (selectedPaths.has(entry.path)) {
+			return;
+		}
+
+		setSelectedPaths(new Set([entry.path]));
 	};
 
 	const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
@@ -67,6 +76,7 @@ export function FileCard({ entry }: FileCardProps) {
 				className={`file-card ${isSelected ? "selected" : ""}`}
 				draggable
 				onClick={handleClick}
+				onContextMenu={handleContextMenu}
 				onDoubleClick={handleDoubleClick}
 				onDragStart={handleDragStart}
 			>
