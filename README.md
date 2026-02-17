@@ -41,10 +41,10 @@ Add these repository secrets before using it:
 - `PR_AGENT_OPENAI_KEY`: API key for that gateway
 - `PR_AGENT_MODEL`: LiteLLM model id (for OpenAI-compatible gateways use `openai/<model-name>`, for example `openai/gpt-4o-mini`)
 
-After that, open or update a PR and PR-Agent will run automatically with `auto_improve`. You can also trigger commands in PR comments, for example:
+After that, open or update a PR and PR-Agent will run automatically with `auto_describe`, `auto_review`, and `auto_improve`. You can also trigger commands in PR comments, for example:
 
 ```text
-/improve
+/review
 ```
 
 ### Local Development

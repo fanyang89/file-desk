@@ -28,4 +28,6 @@ jobs:
           OPENAI__API_BASE: ${{ secrets.PR_AGENT_OPENAI_API_BASE }}
           config.model: ${{ secrets.PR_AGENT_MODEL }}
           github_action_config.pr_actions: '["opened", "reopened", "ready_for_review", "review_requested", "synchronize"]'
+          github_action_config.auto_review: 'true'
+          github_action_config.auto_describe: 'true'
           github_action_config.auto_improve: 'true'
