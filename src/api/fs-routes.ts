@@ -54,8 +54,72 @@ function parseBody(req: IncomingMessage): Promise<Record<string, unknown>> {
 	});
 }
 
-function isLikelyCaseSensitiveServerFs(): boolean {
-	return process.platform !== "darwin" && process.platform !== "win32";
+function toggleFirstAsciiLetterCase(value: string): string | null {
+	for (let i = 0; i < value.length; i += 1) {
+		const char = value[i];
+		if (char >= "a" && char <= "z") {
+			return `${value.slice(0, i)}${char.toUpperCase()}${value.slice(i + 1)}`;
+		}
+		if (char >= "A" && char <= "Z") {
+			return `${value.slice(0, i)}${char.toLowerCase()}${value.slice(i + 1)}`;
+		}
+	}
+
+	return null;
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+	try {
+		await fs.access(filePath);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function isCaseInsensitiveAlias(
+	originalPath: string,
+	aliasPath: string,
+): Promise<boolean> {
+	if (!(await pathExists(aliasPath))) {
+		return false;
+	}
+
+	const [originalStat, aliasStat] = await Promise.all([
+		fs.stat(originalPath),
+		fs.stat(aliasPath),
+	]);
+
+	return (
+		originalStat.dev === aliasStat.dev &&
+		originalStat.ino === aliasStat.ino
+	);
+}
+
+async function detectCaseSensitiveNames(absPath: string): Promise<boolean> {
+	let currentPath = path.resolve(absPath);
+
+	while (true) {
+		const baseName = path.basename(currentPath);
+		const toggledBaseName = toggleFirstAsciiLetterCase(baseName);
+
+		if (toggledBaseName && toggledBaseName !== baseName) {
+			const aliasPath = path.join(path.dirname(currentPath), toggledBaseName);
+			const isAlias = await isCaseInsensitiveAlias(currentPath, aliasPath);
+			if (isAlias) {
+				return false;
+			}
+			return true;
+		}
+
+		const parentPath = path.dirname(currentPath);
+		if (parentPath === currentPath) {
+			break;
+		}
+		currentPath = parentPath;
+	}
+
+	return true;
 }
 
 function normalizeUploadRelativePath(filename: string): string {
@@ -213,10 +277,12 @@ export async function handleListFiles(
 				: immediateEntries;
 		}
 
+		const caseSensitiveNames = await detectCaseSensitiveNames(absPath);
+
 		sendJson(res, {
 			files,
 			currentPath: dirPath,
-			caseSensitiveNames: isLikelyCaseSensitiveServerFs(),
+			caseSensitiveNames,
 		});
 	} catch (err) {
 		sendError(res, (err as Error).message, 500);
