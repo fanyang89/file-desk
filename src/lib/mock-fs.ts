@@ -362,14 +362,14 @@ function collectListEntries(
 export function mockListFiles(
 	path: string,
 	options: MockListFilesOptions = {},
-): { files: FileEntry[]; currentPath: string } {
+): { files: FileEntry[]; currentPath: string; caseSensitiveNames: boolean } {
 	const normalizedPath = normalizePath(path);
 	const dir = getDir(normalizedPath);
 	if (!dir) throw new Error(`Directory not found: /${normalizedPath}`);
 
 	const files: FileEntry[] = [];
 	collectListEntries(dir, normalizedPath, options, files);
-	return { files, currentPath: normalizedPath };
+	return { files, currentPath: normalizedPath, caseSensitiveNames: true };
 }
 
 export function mockCreateFolder(

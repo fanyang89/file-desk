@@ -19,6 +19,7 @@ import {
 interface ListResponse {
 	files: FileEntry[];
 	currentPath: string;
+	caseSensitiveNames: boolean;
 }
 
 export interface ListFilesOptions {
