@@ -27,10 +27,10 @@ jobs:
           OPENAI_KEY: ${{ secrets.PR_AGENT_OPENAI_KEY }}
           OPENAI__KEY: ${{ secrets.PR_AGENT_OPENAI_KEY }}
           OPENAI__API_BASE: ${{ secrets.PR_AGENT_OPENAI_API_BASE }}
-          CONFIG__MODEL: ${{ secrets.PR_AGENT_MODEL }}
-          CONFIG__FALLBACK_MODELS: '["${{ secrets.PR_AGENT_MODEL }}"]'
-          CONFIG__CUSTOM_MODEL_MAX_TOKENS: ${{ secrets.PR_AGENT_CUSTOM_MODEL_MAX_TOKENS || '32768' }}
-          GITHUB_ACTION_CONFIG__PR_ACTIONS: '["opened", "reopened", "ready_for_review", "review_requested", "synchronize"]'
-          GITHUB_ACTION_CONFIG__AUTO_REVIEW: 'true'
-          GITHUB_ACTION_CONFIG__AUTO_DESCRIBE: 'true'
-          GITHUB_ACTION_CONFIG__AUTO_IMPROVE: 'true'
+          config.model: ${{ secrets.PR_AGENT_MODEL }}
+          config.fallback_models: '["${{ secrets.PR_AGENT_MODEL }}"]'
+          config.custom_model_max_tokens: ${{ secrets.PR_AGENT_CUSTOM_MODEL_MAX_TOKENS || '32768' }}
+          github_action_config.pr_actions: '["opened", "reopened", "ready_for_review", "review_requested", "synchronize"]'
+          github_action_config.auto_review: 'true'
+          github_action_config.auto_describe: 'true'
+          github_action_config.auto_improve: 'true'
