@@ -11,6 +11,7 @@ import {
 } from "./fs-routes";
 import {
 	handleCancelTask,
+	handleClearCompletedTasks,
 	handleCreateCopyMoveTask,
 	handleGetTask,
 	handleListTasks,
@@ -55,6 +56,11 @@ export function fsApiPlugin(): Plugin {
 					handleCreateCopyMoveTask(req, res);
 				} else if (pathname === "/api/tasks" && req.method === "GET") {
 					handleListTasks(req, res);
+				} else if (
+					pathname === "/api/tasks/completed" &&
+					req.method === "DELETE"
+				) {
+					handleClearCompletedTasks(req, res);
 				} else if (
 					/^\/api\/tasks\/[^/]+\/cancel$/.test(pathname) &&
 					req.method === "POST"

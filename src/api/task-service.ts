@@ -441,6 +441,17 @@ export async function listTasks(limit = 50): Promise<TaskDto[]> {
 	return [...missingActiveTasks, ...tasks].map(toTaskDto);
 }
 
+export async function clearCompletedTasks(): Promise<number> {
+	await startTaskRuntime();
+	const result = await prisma.task.deleteMany({
+		where: {
+			status: TaskStatus.COMPLETED,
+		},
+	});
+
+	return result.count;
+}
+
 export async function cancelTask(taskId: string): Promise<boolean> {
 	await startTaskRuntime();
 	const task = await prisma.task.findUnique({ where: { id: taskId } });

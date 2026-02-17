@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import {
 	cancelTask,
+	clearCompletedTasks,
 	createCopyMoveTask,
 	getTaskById,
 	listTasks,
@@ -131,6 +132,18 @@ export async function handleListTasks(req: IncomingMessage, res: ServerResponse)
 		const limit = readLimit(url.searchParams);
 		const tasks = await listTasks(limit);
 		sendJson(res, { tasks });
+	} catch (err) {
+		sendError(res, (err as Error).message, 500);
+	}
+}
+
+export async function handleClearCompletedTasks(
+	_req: IncomingMessage,
+	res: ServerResponse,
+) {
+	try {
+		const clearedCount = await clearCompletedTasks();
+		sendJson(res, { success: true, clearedCount });
 	} catch (err) {
 		sendError(res, (err as Error).message, 500);
 	}

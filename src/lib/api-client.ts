@@ -7,6 +7,7 @@ import {
 	mockCreateCopyMoveTask,
 	mockGetTask,
 	mockListTasks,
+	mockClearCompletedTasks,
 	mockCancelTask,
 	mockUploadFiles,
 	mockUploadFileItems,
@@ -42,6 +43,10 @@ interface GetTaskResponse {
 
 interface ListTasksResponse {
 	tasks: BackgroundTask[];
+}
+
+interface ClearCompletedTasksResponse extends SuccessResponse {
+	clearedCount: number;
 }
 
 export interface UploadFileItem {
@@ -347,6 +352,20 @@ export async function listTasks(limit = 50): Promise<ListTasksResponse> {
 		errorFallback: "Failed to list tasks",
 		fallbackOnNotFound: true,
 		mockValue: () => mockListTasks(limit),
+	});
+}
+
+export async function clearCompletedTasks(): Promise<ClearCompletedTasksResponse> {
+	return requestJsonWithMock({
+		url: "/api/tasks/completed",
+		init: {
+			method: "DELETE",
+			headers: { "Content-Type": "application/json" },
+		},
+		fallbackReason: "DELETE /api/tasks/completed",
+		errorFallback: "Failed to clear completed tasks",
+		fallbackOnNotFound: true,
+		mockValue: () => mockClearCompletedTasks(),
 	});
 }
 

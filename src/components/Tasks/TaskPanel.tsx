@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Ban, CheckCircle2, Clock3, Loader2, XCircle } from "lucide-react";
 import { Dialog } from "radix-ui";
 import { Theme } from "@radix-ui/themes";
-import { cancelTask, listTasks } from "@/lib/api-client";
+import { cancelTask, clearCompletedTasks, listTasks } from "@/lib/api-client";
 import { useToast } from "@/components/Toast/useToast";
 import {
 	getActivePaneId,
@@ -98,6 +98,7 @@ export function TaskPanel() {
 	const [error, setError] = useState<string | null>(null);
 	const [filter, setFilter] = useState<TaskFilter>("all");
 	const [jumpTask, setJumpTask] = useState<BackgroundTask | null>(null);
+	const [clearingCompleted, setClearingCompleted] = useState(false);
 	const [cancellingTaskIds, setCancellingTaskIds] = useState<Set<string>>(
 		new Set(),
 	);
@@ -147,6 +148,10 @@ export function TaskPanel() {
 	}, []);
 
 	const activeTasks = useMemo(() => tasks.filter((task) => isActiveTask(task)), [tasks]);
+	const completedTasksCount = useMemo(
+		() => tasks.filter((task) => task.status === "completed").length,
+		[tasks],
+	);
 	const filteredTasks = useMemo(
 		() => tasks.filter((task) => includesTask(task, filter)),
 		[tasks, filter],
@@ -187,6 +192,29 @@ export function TaskPanel() {
 				next.delete(taskId);
 				return next;
 			});
+		}
+	};
+
+	const handleClearCompletedTasks = async () => {
+		if (clearingCompleted || completedTasksCount === 0) return;
+
+		setClearingCompleted(true);
+		try {
+			const { clearedCount } = await clearCompletedTasks();
+			if (clearedCount > 0) {
+				showToast(
+					`Cleared ${clearedCount} completed task${
+						clearedCount === 1 ? "" : "s"
+					}`,
+				);
+			} else {
+				showToast("No completed tasks to clear");
+			}
+			await refreshTasks();
+		} catch (err) {
+			showToast((err as Error).message, "error");
+		} finally {
+			setClearingCompleted(false);
 		}
 	};
 
@@ -287,7 +315,17 @@ export function TaskPanel() {
 			<section className="task-panel">
 				<div className="task-panel-header">
 					<h2 className="task-panel-title">Tasks</h2>
-					<span className="task-panel-count">{activeTasks.length} active</span>
+					<div className="task-panel-header-actions">
+						<span className="task-panel-count">{activeTasks.length} active</span>
+						<button
+							type="button"
+							className="task-clear-btn"
+							disabled={clearingCompleted || completedTasksCount === 0}
+							onClick={() => void handleClearCompletedTasks()}
+						>
+							{clearingCompleted ? "Clearing..." : "Clear completed"}
+						</button>
+					</div>
 				</div>
 				<div className="task-filter-row">
 					{FILTER_OPTIONS.map((option) => (

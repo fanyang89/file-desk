@@ -835,6 +835,25 @@ export function mockListTasks(limit = 50): { tasks: BackgroundTask[] } {
 	return { tasks };
 }
 
+export function mockClearCompletedTasks(): {
+	success: boolean;
+	clearedCount: number;
+} {
+	const completedTaskIds = Array.from(mockTasks.entries())
+		.filter(([, task]) => task.status === "completed")
+		.map(([taskId]) => taskId);
+
+	for (const taskId of completedTaskIds) {
+		removeTaskFromQueue(taskId);
+		mockTasks.delete(taskId);
+	}
+
+	return {
+		success: true,
+		clearedCount: completedTaskIds.length,
+	};
+}
+
 export function mockCancelTask(taskId: string): { success: boolean } {
 	const task = mockTasks.get(taskId);
 	if (!task) {
