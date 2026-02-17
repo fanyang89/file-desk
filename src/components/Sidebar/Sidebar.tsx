@@ -1,10 +1,8 @@
-import { useState } from 'react'
-import { AlertDialog, Popover } from 'radix-ui'
-import { Button, Flex, Theme, Tooltip } from '@radix-ui/themes'
+import { Popover } from 'radix-ui'
+import { Theme, Tooltip } from '@radix-ui/themes'
 import { FolderPlus, HardDrive, ListTodo, Plus, Trash2 } from 'lucide-react'
 import { TaskPanel } from '@/components/Tasks/TaskPanel'
 import { useFileStore, usePanePath } from '@/store/file-store'
-import type { DirPair } from '@/types'
 
 const PATH_DIFF_MIN_LENGTH = 18
 
@@ -93,8 +91,6 @@ export function Sidebar() {
 	const deleteDirPair = useFileStore((s) => s.deleteDirPair)
 	const leftPath = usePanePath('left')
 	const rightPath = usePanePath('right')
-	const [deleteOpen, setDeleteOpen] = useState(false)
-	const [deleteTarget, setDeleteTarget] = useState<DirPair | null>(null)
 
 	const handleCreateDirPair = () => {
 		createDirPair(leftPath, rightPath)
@@ -102,18 +98,6 @@ export function Sidebar() {
 
 	const handleCreateEmptyDirPair = () => {
 		void createEmptyDirPair()
-	}
-
-	const openDeleteDialog = (dirPair: DirPair) => {
-		setDeleteTarget(dirPair)
-		setDeleteOpen(true)
-	}
-
-	const handleDeleteConfirm = () => {
-		if (!deleteTarget) return
-		deleteDirPair(deleteTarget.id)
-		setDeleteOpen(false)
-		setDeleteTarget(null)
 	}
 
 	return (
@@ -221,7 +205,7 @@ export function Sidebar() {
 								<div className='sidebar-item-actions'>
 									<button
 										className='sidebar-item-action'
-										onClick={() => openDeleteDialog(dirPair)}
+										onClick={() => deleteDirPair(dirPair.id)}
 										title='Delete'
 										aria-label={`Delete ${dirPair.leftPath || '/'} | ${dirPair.rightPath || '/'}`}
 									>
@@ -234,48 +218,6 @@ export function Sidebar() {
 				</nav>
 			</aside>
 
-			<AlertDialog.Root
-				open={deleteOpen}
-				onOpenChange={(open) => {
-					setDeleteOpen(open)
-					if (!open) {
-						setDeleteTarget(null)
-					}
-				}}
-			>
-				<AlertDialog.Portal>
-					<Theme
-						appearance='light'
-						accentColor='indigo'
-						grayColor='slate'
-						panelBackground='solid'
-						radius='large'
-						scaling='100%'
-					>
-						<AlertDialog.Overlay className='dialog-overlay' />
-						<AlertDialog.Content className='dialog-content'>
-							<AlertDialog.Title className='dialog-title'>Delete Dir Pair</AlertDialog.Title>
-							<AlertDialog.Description className='dialog-description'>
-								Left: {deleteTarget?.leftPath || '/'}
-								<br />
-								Right: {deleteTarget?.rightPath || '/'}
-							</AlertDialog.Description>
-							<Flex className='dialog-actions' gap='2' justify='end'>
-								<AlertDialog.Cancel asChild>
-									<Button variant='soft' color='gray'>
-										Cancel
-									</Button>
-								</AlertDialog.Cancel>
-								<AlertDialog.Action asChild>
-									<Button color='red' onClick={handleDeleteConfirm}>
-										Delete
-									</Button>
-								</AlertDialog.Action>
-							</Flex>
-						</AlertDialog.Content>
-					</Theme>
-				</AlertDialog.Portal>
-			</AlertDialog.Root>
 		</>
 	)
 }
