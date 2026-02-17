@@ -6,6 +6,7 @@ import {
 	handleDelete,
 	handleDeleteImpact,
 	handleEmptyTrash,
+	handleUploadConflicts,
 	handleUpload,
 	handleDownload,
 	handlePreview,
@@ -47,6 +48,11 @@ export function fsApiPlugin(): Plugin {
 					handleRestoreTrash(req, res);
 				} else if (pathname === "/api/trash/empty" && req.method === "DELETE") {
 					handleEmptyTrash(req, res);
+				} else if (
+					pathname === "/api/upload-conflicts" &&
+					req.method === "POST"
+				) {
+					handleUploadConflicts(req, res);
 				} else if (
 					pathname.startsWith("/api/upload") &&
 					req.method === "POST"

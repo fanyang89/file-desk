@@ -12,8 +12,8 @@ import {
 	mockClearCompletedTasks,
 	mockCancelTask,
 	mockRestoreTrashEntry,
-	mockUploadFiles,
 	mockUploadFileItems,
+	mockGetUploadConflicts,
 	getMockDownloadUrl,
 	getMockPreviewUrl,
 	mockFetchTextContent,
@@ -64,6 +64,28 @@ interface ClearCompletedTasksResponse extends SuccessResponse {
 export interface UploadFileItem {
 	file: File;
 	relativePath?: string;
+}
+
+export type UploadConflictStrategy = "cancel" | "overwrite" | "auto-rename";
+
+export interface UploadConflictCheckResponse {
+	conflicts: string[];
+}
+
+export class UploadConflictError extends Error {
+	readonly conflicts: string[];
+
+	constructor(message: string, conflicts: string[]) {
+		super(message);
+		this.name = "UploadConflictError";
+		this.conflicts = conflicts;
+	}
+}
+
+export function isUploadConflictError(
+	err: unknown,
+): err is UploadConflictError {
+	return err instanceof UploadConflictError;
 }
 
 function isVercelDeploymentHost(): boolean {
@@ -178,6 +200,26 @@ async function readErrorMessage(
 	return fallback;
 }
 
+function normalizeUploadRelativePath(value: string, fallbackName: string): string {
+	const normalized = (value || fallbackName)
+		.replace(/\\/g, "/")
+		.replace(/^\/+/, "")
+		.replace(/\/{2,}/g, "/");
+
+	const segments = normalized.split("/").filter(Boolean);
+	if (segments.length === 0) {
+		segments.push(fallbackName);
+	}
+
+	for (const segment of segments) {
+		if (segment === "." || segment === "..") {
+			throw new Error("Invalid upload path");
+		}
+	}
+
+	return segments.join("/");
+}
+
 interface RequestWithMockOptions<T> {
 	url: string;
 	init?: RequestInit;
@@ -186,6 +228,13 @@ interface RequestWithMockOptions<T> {
 	mockValue: () => T | Promise<T>;
 	fallbackOnNotFound?: boolean;
 	nonFallbackNotFoundMessages?: string[];
+}
+
+interface UploadRequestOptions {
+	path: string;
+	formData: FormData;
+	onConflict: UploadConflictStrategy;
+	mockValue: () => Promise<{ success: boolean; files: string[] }>;
 }
 
 async function requestJsonWithMock<T>({
@@ -227,6 +276,68 @@ async function requestJsonWithMock<T>({
 		throw new Error(await readErrorMessage(res, errorFallback));
 	}
 	return res.json() as Promise<T>;
+}
+
+async function requestUploadWithMock({
+	path,
+	formData,
+	onConflict,
+	mockValue,
+}: UploadRequestOptions): Promise<{ success: boolean; files: string[] }> {
+	if (mockModeEnabled) {
+		return mockValue();
+	}
+
+	const query = new URLSearchParams({ path, onConflict });
+	const requestUrl = `/api/upload?${query.toString()}`;
+
+	let res: Response;
+	try {
+		res = await fetch(requestUrl, {
+			method: "POST",
+			body: formData,
+		});
+	} catch (err) {
+		if (CAN_USE_MOCK && shouldFallbackToMockError(err)) {
+			enableMockMode("POST /api/upload -> network error");
+			return mockValue();
+		}
+		throw err;
+	}
+
+	if (!res.ok) {
+		if (CAN_USE_MOCK && (await shouldFallbackToMockResponse(res, true, []))) {
+			enableMockMode(`POST /api/upload -> ${res.status}`);
+			return mockValue();
+		}
+
+		if (res.status === 409) {
+			let message = "Upload conflicts detected";
+			let conflicts: string[] = [];
+			try {
+				const payload = (await res.clone().json()) as {
+					error?: unknown;
+					conflicts?: unknown;
+				};
+				if (typeof payload.error === "string" && payload.error.trim()) {
+					message = payload.error;
+				}
+				if (Array.isArray(payload.conflicts)) {
+					conflicts = payload.conflicts.filter(
+						(value): value is string => typeof value === "string",
+					);
+				}
+			} catch {
+				message = await readErrorMessage(res, message);
+			}
+
+			throw new UploadConflictError(message, conflicts);
+		}
+
+		throw new Error(await readErrorMessage(res, "Failed to upload"));
+	}
+
+	return res.json() as Promise<{ success: boolean; files: string[] }>;
 }
 
 export async function listFiles(path: string): Promise<ListResponse> {
@@ -445,46 +556,63 @@ export async function cancelTask(taskId: string): Promise<SuccessResponse> {
 export async function uploadFiles(
 	path: string,
 	files: FileList,
+	options?: { onConflict?: UploadConflictStrategy },
 ): Promise<{ success: boolean; files: string[] }> {
-	const formData = new FormData();
-	for (const file of files) {
-		formData.append("files", file);
-	}
-
-	return requestJsonWithMock({
-		url: `/api/upload?path=${encodeURIComponent(path)}`,
-		init: {
-			method: "POST",
-			body: formData,
-		},
-		fallbackReason: "POST /api/upload",
-		errorFallback: "Failed to upload",
-		mockValue: () => mockUploadFiles(path, files),
-	});
+	const onConflict = options?.onConflict ?? "cancel";
+	return uploadFileItems(
+		path,
+		Array.from(files).map((file) => ({
+			file,
+			relativePath: file.name,
+		})),
+		{ onConflict },
+	);
 }
 
 export async function uploadFileItems(
 	path: string,
 	items: UploadFileItem[],
+	options?: { onConflict?: UploadConflictStrategy },
 ): Promise<{ success: boolean; files: string[] }> {
+	const onConflict = options?.onConflict ?? "cancel";
 	const formData = new FormData();
 	for (const item of items) {
-		const normalizedPath = (item.relativePath || item.file.name)
-			.replace(/\\/g, "/")
-			.replace(/^\/+/, "")
-			.replace(/\/{2,}/g, "/");
+		const normalizedPath = normalizeUploadRelativePath(
+			item.relativePath || item.file.name,
+			item.file.name,
+		);
 		formData.append("files", item.file, normalizedPath || item.file.name);
 	}
 
+	return requestUploadWithMock({
+		path,
+		formData,
+		onConflict,
+		mockValue: () => mockUploadFileItems(path, items, onConflict),
+	});
+}
+
+export async function checkUploadConflicts(
+	path: string,
+	relativePaths: string[],
+): Promise<UploadConflictCheckResponse> {
+	const normalizedPaths = relativePaths.map((relativePath) =>
+		normalizeUploadRelativePath(relativePath, relativePath),
+	);
+
 	return requestJsonWithMock({
-		url: `/api/upload?path=${encodeURIComponent(path)}`,
+		url: "/api/upload-conflicts",
 		init: {
 			method: "POST",
-			body: formData,
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				path,
+				files: normalizedPaths,
+			}),
 		},
-		fallbackReason: "POST /api/upload",
-		errorFallback: "Failed to upload",
-		mockValue: () => mockUploadFileItems(path, items),
+		fallbackReason: "POST /api/upload-conflicts",
+		errorFallback: "Failed to check upload conflicts",
+		mockValue: () => mockGetUploadConflicts(path, normalizedPaths),
 	});
 }
 

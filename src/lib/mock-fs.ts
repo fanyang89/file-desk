@@ -415,6 +415,8 @@ export interface MockUploadFileItem {
 	relativePath?: string;
 }
 
+export type MockUploadConflictStrategy = "cancel" | "overwrite" | "auto-rename";
+
 function collectListEntries(
 	dir: MockDir,
 	parentPath: string,
@@ -783,6 +785,96 @@ function normalizeUploadRelativePath(relativePath: string, fallbackName: string)
 	return segments.join("/");
 }
 
+function splitBaseNameAndExtension(fileName: string): {
+	baseName: string;
+	extension: string;
+} {
+	const dotIndex = fileName.lastIndexOf(".");
+	if (dotIndex <= 0) {
+		return { baseName: fileName, extension: "" };
+	}
+
+	return {
+		baseName: fileName.slice(0, dotIndex),
+		extension: fileName.slice(dotIndex),
+	};
+}
+
+function buildAutoRenameName(fileName: string, index: number): string {
+	const { baseName, extension } = splitBaseNameAndExtension(fileName);
+	return `${baseName}_${index}${extension}`;
+}
+
+function resolveAutoRenameName(currentDir: MockDir, fileName: string): string {
+	let attempt = 0;
+	let candidate = fileName;
+
+	while (currentDir.children.has(candidate)) {
+		attempt += 1;
+		candidate = buildAutoRenameName(fileName, attempt);
+	}
+
+	return candidate;
+}
+
+function getUploadTargetNode(
+	targetDir: MockDir,
+	normalizedPath: string,
+	relativePath: string,
+): MockNode | null {
+	const segments = splitPath(relativePath);
+	if (segments.length === 0) return null;
+
+	let currentDir = targetDir;
+	let currentPath = normalizedPath;
+
+	for (const segment of segments.slice(0, -1)) {
+		const child = currentDir.children.get(segment);
+		if (!child) {
+			return null;
+		}
+		if (child.kind !== "dir") {
+			throw new Error(`Cannot create folder "${segment}" in /${currentPath}`);
+		}
+		currentDir = child;
+		currentPath = joinPath(currentPath, segment);
+	}
+
+	return currentDir.children.get(segments[segments.length - 1]) || null;
+}
+
+export function mockGetUploadConflicts(
+	path: string,
+	relativePaths: string[],
+): { conflicts: string[] } {
+	const normalizedPath = normalizePath(path);
+	const targetDir = getDir(normalizedPath);
+	if (!targetDir) throw new Error(`Directory not found: /${normalizedPath}`);
+
+	const conflictSet = new Set<string>();
+	const plannedPaths = new Set<string>();
+
+	for (const filePath of relativePaths) {
+		const normalizedRelativePath = normalizeUploadRelativePath(filePath, filePath);
+		if (plannedPaths.has(normalizedRelativePath)) {
+			conflictSet.add(normalizedRelativePath);
+			continue;
+		}
+		plannedPaths.add(normalizedRelativePath);
+
+		const targetNode = getUploadTargetNode(
+			targetDir,
+			normalizedPath,
+			normalizedRelativePath,
+		);
+		if (targetNode) {
+			conflictSet.add(normalizedRelativePath);
+		}
+	}
+
+	return { conflicts: Array.from(conflictSet) };
+}
+
 function getOrCreateDirectory(
 	parent: MockDir,
 	segment: string,
@@ -806,10 +898,22 @@ function getOrCreateDirectory(
 export async function mockUploadFileItems(
 	path: string,
 	items: MockUploadFileItem[],
+	strategy: MockUploadConflictStrategy = "cancel",
 ): Promise<{ success: boolean; files: string[] }> {
 	const normalizedPath = normalizePath(path);
 	const targetDir = getDir(normalizedPath);
 	if (!targetDir) throw new Error(`Directory not found: /${normalizedPath}`);
+
+	if (strategy === "cancel") {
+		const { conflicts } = mockGetUploadConflicts(
+			normalizedPath,
+			items.map((item) => item.relativePath || item.file.name),
+		);
+		if (conflicts.length > 0) {
+			const conflictList = conflicts.join(", ");
+			throw new Error(`Upload conflicts detected: ${conflictList}`);
+		}
+	}
 
 	const uploaded: string[] = [];
 	for (const item of items) {
@@ -837,21 +941,36 @@ export async function mockUploadFileItems(
 		const mimeType =
 			item.file.type || inferMimeType(fileName, "application/octet-stream");
 		const existingNode = currentDir.children.get(fileName);
-		if (existingNode?.kind === "dir") {
-			throw new Error(`Cannot overwrite folder "${fileName}"`);
+
+		let targetFileName = fileName;
+		if (existingNode && strategy === "auto-rename") {
+			targetFileName = resolveAutoRenameName(currentDir, fileName);
 		}
 
-		if (existingNode?.kind === "file") {
-			existingNode.content = content;
-			existingNode.mimeType = mimeType;
-			existingNode.extension = getExtension(fileName);
-			existingNode.modifiedAt = nowIso();
+		const targetNode = currentDir.children.get(targetFileName);
+		if (targetNode?.kind === "dir") {
+			if (strategy === "overwrite") {
+				throw new Error(`Cannot overwrite folder "${targetFileName}"`);
+			}
+
+			targetFileName = resolveAutoRenameName(currentDir, targetFileName);
+		}
+
+		const finalNode = currentDir.children.get(targetFileName);
+		if (finalNode?.kind === "file") {
+			finalNode.content = content;
+			finalNode.mimeType = mimeType;
+			finalNode.extension = getExtension(targetFileName);
+			finalNode.modifiedAt = nowIso();
 		} else {
-			currentDir.children.set(fileName, createFile(fileName, content, mimeType));
+			currentDir.children.set(
+				targetFileName,
+				createFile(targetFileName, content, mimeType),
+			);
 		}
 
 		currentDir.modifiedAt = nowIso();
-		uploaded.push(relativePath);
+		uploaded.push(joinPath(currentPath, targetFileName));
 	}
 
 	touchDir(normalizedPath);
@@ -861,10 +980,12 @@ export async function mockUploadFileItems(
 export async function mockUploadFiles(
 	path: string,
 	files: FileList,
+	strategy: MockUploadConflictStrategy = "cancel",
 ): Promise<{ success: boolean; files: string[] }> {
 	return mockUploadFileItems(
 		path,
 		Array.from(files).map((file) => ({ file, relativePath: file.name })),
+		strategy,
 	);
 }
 

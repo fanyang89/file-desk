@@ -45,6 +45,8 @@ interface DeleteImpactResponse extends DeleteImpactStats {
 	totalItems: number;
 }
 
+type UploadConflictStrategy = "cancel" | "overwrite" | "auto-rename";
+
 function isTruthyQuery(value: string | null): boolean {
 	if (!value) return false;
 	const normalized = value.trim().toLowerCase();
@@ -163,6 +165,238 @@ function normalizeUploadRelativePath(filename: string): string {
 	}
 
 	return segments.join("/");
+}
+
+function parseUploadConflictStrategy(
+	value: string | null,
+): UploadConflictStrategy {
+	if (!value || value === "cancel") return "cancel";
+	if (value === "overwrite") return "overwrite";
+	if (value === "auto-rename") return "auto-rename";
+	throw new Error("Invalid upload conflict strategy");
+}
+
+function splitUploadRelativePath(relativePath: string): {
+	parentRelativePath: string;
+	fileName: string;
+} {
+	const segments = relativePath.split("/");
+	const fileName = segments[segments.length - 1];
+	const parentRelativePath = segments.slice(0, -1).join("/");
+	return { parentRelativePath, fileName };
+}
+
+function assertUploadTargetWithinDirectory(
+	absDir: string,
+	targetAbsPath: string,
+): void {
+	if (!(targetAbsPath === absDir || targetAbsPath.startsWith(`${absDir}${path.sep}`))) {
+		throw new Error("Invalid upload path");
+	}
+}
+
+function splitFileNameExtension(fileName: string): {
+	baseName: string;
+	extension: string;
+} {
+	const extension = path.extname(fileName);
+	if (!extension) {
+		return { baseName: fileName, extension: "" };
+	}
+
+	return {
+		baseName: fileName.slice(0, -extension.length),
+		extension,
+	};
+}
+
+function buildAutoRenameFileName(fileName: string, index: number): string {
+	const { baseName, extension } = splitFileNameExtension(fileName);
+	return `${baseName}_${index}${extension}`;
+}
+
+function buildTempUploadFileName(finalFileName: string): string {
+	const randomSuffix = crypto.randomBytes(6).toString("hex");
+	return `${finalFileName}.${randomSuffix}.partial`;
+}
+
+async function createTempUploadPath(finalAbsPath: string): Promise<string> {
+	const targetDirAbsPath = path.dirname(finalAbsPath);
+	const finalFileName = path.basename(finalAbsPath);
+
+	for (let attempt = 0; attempt < 8; attempt += 1) {
+		const candidateAbsPath = path.join(
+			targetDirAbsPath,
+			buildTempUploadFileName(finalFileName),
+		);
+		if (!(await pathExists(candidateAbsPath))) {
+			return candidateAbsPath;
+		}
+	}
+
+	throw new Error("Failed to allocate temporary upload file");
+}
+
+async function writeFileStreamToPath(
+	file: NodeJS.ReadableStream,
+	targetPath: string,
+): Promise<void> {
+	const fileHandle = await fs.open(targetPath, "wx");
+
+	try {
+		await new Promise<void>((resolve, reject) => {
+			const writeStream = createWriteStream(targetPath, {
+				fd: fileHandle.fd,
+				autoClose: false,
+			});
+			const onError = (err: unknown) => {
+				writeStream.off("error", onError);
+				writeStream.off("finish", onFinish);
+				file.off("error", onError);
+				reject(err);
+			};
+			const onFinish = () => {
+				writeStream.off("error", onError);
+				writeStream.off("finish", onFinish);
+				file.off("error", onError);
+				resolve();
+			};
+
+			writeStream.on("error", onError);
+			writeStream.on("finish", onFinish);
+			file.on("error", onError);
+
+			file.pipe(writeStream);
+		});
+
+		await fileHandle.sync();
+	} finally {
+		await fileHandle.close();
+	}
+}
+
+async function removeTempUploadFile(tempAbsPath: string): Promise<void> {
+	try {
+		await fs.rm(tempAbsPath, { force: true });
+	} catch {
+		// Ignore cleanup failures for temp uploads.
+	}
+}
+
+async function syncDirectory(dirAbsPath: string): Promise<void> {
+	const handle = await fs.open(dirAbsPath, "r");
+	try {
+		await handle.sync();
+	} finally {
+		await handle.close();
+	}
+}
+
+async function resolveUploadFinalPath({
+	dirPath,
+	absDir,
+	relativePath,
+	strategy,
+	reservedTargetPaths,
+}: {
+	dirPath: string;
+	absDir: string;
+	relativePath: string;
+	strategy: UploadConflictStrategy;
+	reservedTargetPaths: Set<string>;
+}): Promise<{
+	finalRelativePath: string;
+	finalAbsPath: string;
+	hadConflict: boolean;
+}> {
+	const { parentRelativePath, fileName } = splitUploadRelativePath(relativePath);
+	const parentAbsPath = safePath(path.join(dirPath, parentRelativePath));
+	assertUploadTargetWithinDirectory(absDir, parentAbsPath);
+
+	const originalAbsPath = safePath(path.join(dirPath, relativePath));
+	assertUploadTargetWithinDirectory(absDir, originalAbsPath);
+
+	if (strategy === "overwrite") {
+		const targetExists = await pathExists(originalAbsPath);
+		if (targetExists) {
+			const stat = await fs.lstat(originalAbsPath);
+			if (stat.isDirectory()) {
+				throw new Error(`Cannot overwrite folder "${fileName}"`);
+			}
+		}
+		return {
+			finalRelativePath: relativePath,
+			finalAbsPath: originalAbsPath,
+			hadConflict: targetExists,
+		};
+	}
+
+	if (strategy === "cancel") {
+		const hasConflict =
+			reservedTargetPaths.has(originalAbsPath) ||
+			(await pathExists(originalAbsPath));
+		if (!hasConflict) {
+			reservedTargetPaths.add(originalAbsPath);
+		}
+
+		return {
+			finalRelativePath: relativePath,
+			finalAbsPath: originalAbsPath,
+			hadConflict: hasConflict,
+		};
+	}
+
+	let attempt = 0;
+	while (true) {
+		const candidateFileName =
+			attempt === 0 ? fileName : buildAutoRenameFileName(fileName, attempt);
+		const candidateRelativePath = parentRelativePath
+			? `${parentRelativePath}/${candidateFileName}`
+			: candidateFileName;
+		const candidateAbsPath = safePath(path.join(dirPath, candidateRelativePath));
+		assertUploadTargetWithinDirectory(absDir, candidateAbsPath);
+
+		const isTaken =
+			reservedTargetPaths.has(candidateAbsPath) ||
+			(await pathExists(candidateAbsPath));
+		if (!isTaken) {
+			reservedTargetPaths.add(candidateAbsPath);
+			return {
+				finalRelativePath: candidateRelativePath,
+				finalAbsPath: candidateAbsPath,
+				hadConflict: attempt > 0,
+			};
+		}
+
+		attempt += 1;
+	}
+}
+
+async function collectUploadConflicts(
+	dirPath: string,
+	absDir: string,
+	relativePaths: string[],
+): Promise<string[]> {
+	const conflictSet = new Set<string>();
+	const plannedPaths = new Set<string>();
+
+	for (const relativePath of relativePaths) {
+		const normalizedRelativePath = normalizeUploadRelativePath(relativePath);
+		const targetAbsPath = safePath(path.join(dirPath, normalizedRelativePath));
+		assertUploadTargetWithinDirectory(absDir, targetAbsPath);
+
+		if (plannedPaths.has(normalizedRelativePath)) {
+			conflictSet.add(normalizedRelativePath);
+			continue;
+		}
+		plannedPaths.add(normalizedRelativePath);
+
+		if (await pathExists(targetAbsPath)) {
+			conflictSet.add(normalizedRelativePath);
+		}
+	}
+
+	return Array.from(conflictSet);
 }
 
 function createThumbnailEtag(
@@ -536,10 +770,51 @@ export async function handleDeleteImpact(
 	}
 }
 
+export async function handleUploadConflicts(
+	req: IncomingMessage,
+	res: ServerResponse,
+) {
+	try {
+		const body = (await parseBody(req)) as {
+			path?: unknown;
+			files?: unknown;
+		};
+
+		const dirPath = typeof body.path === "string" ? body.path : "";
+		if (!Array.isArray(body.files)) {
+			sendError(res, "files must be an array of strings", 400);
+			return;
+		}
+
+		const rawPaths = body.files.filter(
+			(value): value is string => typeof value === "string",
+		);
+		if (rawPaths.length !== body.files.length) {
+			sendError(res, "files must be an array of strings", 400);
+			return;
+		}
+
+		const absDir = safePath(dirPath);
+		const conflicts = await collectUploadConflicts(dirPath, absDir, rawPaths);
+		sendJson(res, { conflicts });
+	} catch (err) {
+		sendError(res, (err as Error).message, 500);
+	}
+}
+
 export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 	try {
 		const url = new URL(req.url!, `http://${req.headers.host}`);
 		const dirPath = url.searchParams.get("path") || "";
+		let conflictStrategy: UploadConflictStrategy;
+		try {
+			conflictStrategy = parseUploadConflictStrategy(
+				url.searchParams.get("onConflict"),
+			);
+		} catch (err) {
+			sendError(res, (err as Error).message, 400);
+			return;
+		}
 		const absDir = safePath(dirPath);
 
 		const busboy = Busboy({
@@ -547,6 +822,8 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 			preservePath: true,
 		});
 		const uploads: string[] = [];
+		const conflictSet = new Set<string>();
+		const reservedTargetPaths = new Set<string>();
 		const writePromises: Array<Promise<Error | null>> = [];
 		let responded = false;
 
@@ -578,28 +855,36 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 				}
 
 				const writePromise = (async () => {
-					let startedStreaming = false;
+					let tempAbsPath: string | null = null;
 					try {
-						const savePath = safePath(path.join(dirPath, relativePath));
-						if (!(savePath === absDir || savePath.startsWith(`${absDir}${path.sep}`))) {
-							throw new Error("Invalid upload path");
-						}
-
-						await fs.mkdir(path.dirname(savePath), { recursive: true });
-						await new Promise<void>((resolve, reject) => {
-							const writeStream = createWriteStream(savePath);
-
-							writeStream.on("error", reject);
-							writeStream.on("finish", resolve);
-							file.on("error", reject);
-
-							startedStreaming = true;
-							file.pipe(writeStream);
+						const resolvedTarget = await resolveUploadFinalPath({
+							dirPath,
+							absDir,
+							relativePath,
+							strategy: conflictStrategy,
+							reservedTargetPaths,
 						});
-					} catch (err) {
-						if (!startedStreaming) {
+
+						if (conflictStrategy === "cancel" && resolvedTarget.hadConflict) {
 							file.resume();
+							conflictSet.add(relativePath);
+							return;
 						}
+
+						await fs.mkdir(path.dirname(resolvedTarget.finalAbsPath), {
+							recursive: true,
+						});
+						tempAbsPath = await createTempUploadPath(resolvedTarget.finalAbsPath);
+						await writeFileStreamToPath(file, tempAbsPath);
+						await fs.rename(tempAbsPath, resolvedTarget.finalAbsPath);
+						await syncDirectory(path.dirname(resolvedTarget.finalAbsPath));
+						tempAbsPath = null;
+						uploads.push(resolvedTarget.finalRelativePath);
+					} catch (err) {
+						if (tempAbsPath) {
+							await removeTempUploadFile(tempAbsPath);
+						}
+						file.resume();
 						throw err;
 					}
 				})()
@@ -611,7 +896,6 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 					});
 
 				writePromises.push(writePromise);
-				uploads.push(relativePath);
 			},
 		);
 
@@ -621,6 +905,18 @@ export async function handleUpload(req: IncomingMessage, res: ServerResponse) {
 				const firstError = errors.find((error) => error !== null);
 				if (firstError && !responded) {
 					respondError(firstError.message, 500);
+					return;
+				}
+
+				if (conflictStrategy === "cancel" && conflictSet.size > 0) {
+					if (responded) return;
+					responded = true;
+					const conflicts = Array.from(conflictSet);
+					sendJson(
+						res,
+						{ error: "Upload conflicts detected", conflicts },
+						409,
+					);
 					return;
 				}
 
