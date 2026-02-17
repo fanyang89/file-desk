@@ -214,7 +214,6 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 			operation,
 			sourcePath,
 			sourcePaneId,
-			targetPaneId: paneId,
 			targetPath,
 			names,
 			overwriteNames,
