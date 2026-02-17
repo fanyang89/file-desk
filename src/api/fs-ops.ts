@@ -173,14 +173,15 @@ async function transferWithOverwrite({
 		}
 	} catch (err) {
 		const targetExists = await pathExists(targetAbsPath);
-		if (operation === "move" && targetExists) {
+		if (
+			err instanceof MoveSourceCleanupError &&
+			operation === "move" &&
+			targetExists
+		) {
 			await cleanupOverwriteBackup(backupAbsPath, name);
-			if (err instanceof MoveSourceCleanupError) {
-				throw new Error(
-					`${err.message}. Destination data was kept to avoid data loss.`,
-				);
-			}
-			throw err;
+			throw new Error(
+				`${err.message}. Destination data was kept to avoid data loss.`,
+			);
 		}
 
 		try {
