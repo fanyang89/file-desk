@@ -10,6 +10,7 @@ import {
 } from "@/lib/api-client";
 import { formatFileSize } from "@/lib/format";
 import { useToast } from "@/components/Toast/useToast";
+import { isTrashPath } from "@/lib/trash";
 
 const LARGE_DELETE_ITEM_THRESHOLD = 1000;
 const LARGE_DELETE_BYTES_THRESHOLD = 1024 * 1024 * 1024;
@@ -60,6 +61,7 @@ export function DeleteConfirmDialog({
 	const [isDeleting, setIsDeleting] = useState(false);
 
 	const objectLabel = entry.isDirectory ? "folder" : "file";
+	const isPermanentDelete = targetPath !== null && isTrashPath(targetPath);
 	const deletePhrase = useMemo(() => getDeletePhrase(entry.name), [entry.name]);
 	const impact = impactState.status === "ready" ? impactState.impact : null;
 	const isImpactLoading = impactState.status === "loading";
@@ -76,22 +78,28 @@ export function DeleteConfirmDialog({
 
 	const deleteButtonLabel = (() => {
 		if (isDeleting) {
-			return "Deleting...";
+			return isPermanentDelete ? "Deleting..." : "Moving...";
 		}
 
 		if (requiresPhraseConfirm && impact) {
-			return `Delete ${impact.totalItems.toLocaleString()} items`;
+			return isPermanentDelete
+				? `Delete ${impact.totalItems.toLocaleString()} items`
+				: `Move ${impact.totalItems.toLocaleString()} items to trash`;
 		}
 
 		if (requiresPhraseConfirm) {
-			return `Delete ${objectLabel}`;
+			return isPermanentDelete
+				? `Delete ${objectLabel}`
+				: `Move ${objectLabel} to trash`;
 		}
 
 		if (requiresSecondClick) {
-			return "Confirm delete";
+			return isPermanentDelete ? "Confirm delete" : "Confirm move";
 		}
 
-		return `Delete ${objectLabel}`;
+		return isPermanentDelete
+			? `Delete ${objectLabel}`
+			: `Move ${objectLabel} to trash`;
 	})();
 
 	useEffect(() => {
@@ -145,7 +153,11 @@ export function DeleteConfirmDialog({
 
 		try {
 			await deleteEntry(targetPath, entry.name);
-			showToast(`"${entry.name}" deleted`);
+			showToast(
+				isPermanentDelete
+					? `"${entry.name}" permanently deleted`
+					: `"${entry.name}" moved to trash`,
+			);
 			clearSelection();
 			await refresh();
 			onOpenChange(false);
@@ -190,9 +202,13 @@ export function DeleteConfirmDialog({
 		onOpenChange(nextOpen);
 	};
 
-	const warningText = entry.isDirectory
-		? "All files and subfolders inside will also be deleted."
-		: "The selected file will be permanently deleted.";
+	const warningText = isPermanentDelete
+		? entry.isDirectory
+			? "All files and subfolders inside will be permanently deleted."
+			: "The selected file will be permanently deleted."
+		: entry.isDirectory
+			? "All files and subfolders inside will be moved to trash."
+			: "The selected file will be moved to trash.";
 
 	return (
 		<AlertDialog.Root open={open} onOpenChange={handleOpenChange}>
@@ -208,10 +224,11 @@ export function DeleteConfirmDialog({
 					<AlertDialog.Overlay className="dialog-overlay" />
 					<AlertDialog.Content className="dialog-content delete-dialog-content">
 						<AlertDialog.Title className="dialog-title">
-							Delete {objectLabel}?
+							{isPermanentDelete ? "Delete permanently" : "Move to trash"}?
 						</AlertDialog.Title>
 						<AlertDialog.Description className="dialog-description delete-dialog-description">
-							Review the impact before deleting this {objectLabel}.
+							Review the impact before {isPermanentDelete ? "deleting" : "moving"}{" "}
+							this {objectLabel}.
 						</AlertDialog.Description>
 						<div className="delete-impact-card">
 							<div className="delete-impact-name" title={entry.name}>
@@ -256,12 +273,16 @@ export function DeleteConfirmDialog({
 							)}
 						</div>
 
-						<div className="delete-warning-line">This action cannot be undone.</div>
+						<div className="delete-warning-line">
+							{isPermanentDelete
+								? "This action cannot be undone."
+								: "You can restore this item from Trash."}
+						</div>
 
 						{requiresPhraseConfirm ? (
 							<div className="delete-phrase-wrap">
 								<label className="delete-phrase-label" htmlFor="delete-phrase-input">
-									Type <code>{deletePhrase}</code> to confirm deletion.
+									Type <code>{deletePhrase}</code> to confirm {isPermanentDelete ? "deletion" : "move"}.
 								</label>
 								<TextField.Root
 									id="delete-phrase-input"
@@ -286,8 +307,12 @@ export function DeleteConfirmDialog({
 								}
 							>
 								{requiresSecondClick
-									? "Click Delete again to start the deletion."
-									: "Two-step confirmation enabled: first click arms deletion."}
+									? isPermanentDelete
+										? "Click Delete again to permanently remove it."
+										: "Click Move again to send it to trash."
+									: isPermanentDelete
+										? "Two-step confirmation enabled: first click arms deletion."
+										: "Two-step confirmation enabled: first click arms move to trash."}
 							</div>
 						)}
 

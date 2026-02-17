@@ -673,6 +673,11 @@ input {
 	color: var(--gray-12);
 }
 
+.sidebar-item-action:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
 .sidebar-item.active .sidebar-item-action {
 	color: var(--accent-10);
 }

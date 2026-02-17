@@ -13,6 +13,7 @@ import {
 	ChevronRight,
 	Pencil,
 	Image,
+	Trash2,
 } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
 import { Theme, Tooltip } from "@radix-ui/themes";
@@ -23,10 +24,11 @@ import {
 	selectLoading,
 	useExplorerPaneId,
 } from "@/store/file-store";
-import { uploadFiles } from "@/lib/api-client";
+import { emptyTrash, uploadFiles } from "@/lib/api-client";
 import { useToast } from "@/components/Toast/useToast";
 import { NewFolderDialog } from "@/components/Dialogs/NewFolderDialog";
 import type { SortField, SortDirection, TaskOperation } from "@/types";
+import { isTrashFilesPath } from "@/lib/trash";
 import {
 	getDirectChildName,
 	runCopyMoveTask,
@@ -68,6 +70,7 @@ export function Toolbar() {
 	const currentPath = useFileStore(selectCurrentPath);
 	const entries = useFileStore(selectEntries);
 	const selectedPaths = useFileStore((s) => s.selectedPaths);
+	const clearSelection = useFileStore((s) => s.clearSelection);
 	const navigate = useFileStore((s) => s.navigate);
 	const refresh = useFileStore((s) => s.refresh);
 	const paneId = useExplorerPaneId();
@@ -80,6 +83,8 @@ export function Toolbar() {
 	const [isEditingPath, setIsEditingPath] = useState(false);
 	const [pathInput, setPathInput] = useState("");
 	const [transferBusy, setTransferBusy] = useState(false);
+	const [emptyingTrash, setEmptyingTrash] = useState(false);
+	const isTrashView = isTrashFilesPath(currentPath);
 	const parentPath = currentPath
 		.split("/")
 		.filter(Boolean)
@@ -118,6 +123,26 @@ export function Toolbar() {
 			await refresh();
 		} catch (err) {
 			showToast((err as Error).message, "error");
+		}
+	};
+
+	const handleEmptyTrash = async () => {
+		if (emptyingTrash) return;
+		const confirmed = window.confirm(
+			"Empty trash permanently deletes all items. Continue?",
+		);
+		if (!confirmed) return;
+
+		setEmptyingTrash(true);
+		try {
+			await emptyTrash();
+			showToast("Trash emptied");
+			clearSelection();
+			await refresh();
+		} catch (err) {
+			showToast((err as Error).message, "error");
+		} finally {
+			setEmptyingTrash(false);
 		}
 	};
 
@@ -337,6 +362,18 @@ export function Toolbar() {
 							<RefreshCw size={18} className={loading ? "spinner" : undefined} />
 						</button>
 					</IconHelpTooltip>
+					{isTrashView ? (
+						<IconHelpTooltip content="Empty trash">
+							<button
+								className="toolbar-btn"
+								onClick={() => void handleEmptyTrash()}
+								aria-label="Empty trash"
+								disabled={emptyingTrash}
+							>
+								<Trash2 size={18} />
+							</button>
+						</IconHelpTooltip>
+					) : null}
 					<input
 						ref={fileInputRef}
 						type="file"

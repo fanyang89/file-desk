@@ -10,6 +10,7 @@ import {
 	Eye,
 	Scissors,
 	Info,
+	Undo2,
 } from "lucide-react";
 import type { FileEntry } from "@/types";
 import {
@@ -17,7 +18,8 @@ import {
 	useFileStore,
 	selectCurrentPath,
 } from "@/store/file-store";
-import { getDownloadUrl } from "@/lib/api-client";
+import { getDownloadUrl, restoreTrashEntry } from "@/lib/api-client";
+import { TRASH_FILES_PATH, isTrashFilesPath } from "@/lib/trash";
 import { RenameDialog } from "@/components/Dialogs/RenameDialog";
 import { DeleteConfirmDialog } from "@/components/Dialogs/DeleteConfirmDialog";
 import { PropertiesDialog } from "@/components/Dialogs/PropertiesDialog";
@@ -34,6 +36,8 @@ interface FileContextMenuProps {
 
 export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 	const { navigate, openPreview } = useFileStore();
+	const refresh = useFileStore((s) => s.refresh);
+	const clearSelection = useFileStore((s) => s.clearSelection);
 	const currentPath = useFileStore(selectCurrentPath);
 	const selectedPaths = useFileStore((s) => s.selectedPaths);
 	const entries = useFileStore((s) => s.entries);
@@ -45,10 +49,13 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 	const [deleteOpen, setDeleteOpen] = useState(false);
 	const [propertiesOpen, setPropertiesOpen] = useState(false);
 	const [transferBusy, setTransferBusy] = useState(false);
+	const [restoreBusy, setRestoreBusy] = useState(false);
 	const [renameTargetPath, setRenameTargetPath] = useState<string | null>(null);
 	const [deleteTargetPath, setDeleteTargetPath] = useState<string | null>(null);
 
 	const canTransfer = !loading && !transferBusy;
+	const canRestore = currentPath === TRASH_FILES_PATH && !restoreBusy;
+	const isTrashLocation = isTrashFilesPath(currentPath);
 
 	const handleDownload = () => {
 		const url = getDownloadUrl(entry.path);
@@ -70,6 +77,22 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 
 	const handlePropertiesOpen = () => {
 		setPropertiesOpen(true);
+	};
+
+	const handleRestore = async () => {
+		if (!canRestore) return;
+
+		setRestoreBusy(true);
+		try {
+			await restoreTrashEntry(entry.path);
+			showToast(`"${entry.name}" restored`);
+			clearSelection();
+			await refresh();
+		} catch (err) {
+			showToast((err as Error).message, "error");
+		} finally {
+			setRestoreBusy(false);
+		}
 	};
 
 	const handleTransfer = async (operation: "copy" | "move") => {
@@ -156,7 +179,7 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 						scaling="100%"
 					>
 						<ContextMenu.Content className="context-menu-content">
-							{entry.isDirectory && (
+							{entry.isDirectory ? (
 								<ContextMenu.Item
 									className="context-menu-item"
 									onSelect={() => navigate(entry.path)}
@@ -164,8 +187,7 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 									<FolderOpen size={14} />
 									<span>Open</span>
 								</ContextMenu.Item>
-							)}
-							{!entry.isDirectory && (
+							) : (
 								<>
 									<ContextMenu.Item
 										className="context-menu-item"
@@ -179,30 +201,41 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 										onSelect={handleDownload}
 									>
 										<Download size={14} />
-									<span>Download</span>
-								</ContextMenu.Item>
-							</>
-						)}
-						<ContextMenu.Item
-							className="context-menu-item"
-							onSelect={() => void handleTransfer("copy")}
-							disabled={!canTransfer}
-						>
-							<Copy size={14} />
-							<span>Copy to other pane</span>
-						</ContextMenu.Item>
-						<ContextMenu.Item
-							className="context-menu-item"
-							onSelect={() => void handleTransfer("move")}
-							disabled={!canTransfer}
-						>
-							<Scissors size={14} />
-							<span>Move to other pane</span>
-						</ContextMenu.Item>
+										<span>Download</span>
+									</ContextMenu.Item>
+								</>
+							)}
+							<ContextMenu.Item
+								className="context-menu-item"
+								onSelect={() => void handleTransfer("copy")}
+								disabled={!canTransfer}
+							>
+								<Copy size={14} />
+								<span>Copy to other pane</span>
+							</ContextMenu.Item>
+							<ContextMenu.Item
+								className="context-menu-item"
+								onSelect={() => void handleTransfer("move")}
+								disabled={!canTransfer}
+							>
+								<Scissors size={14} />
+								<span>Move to other pane</span>
+							</ContextMenu.Item>
 							<ContextMenu.Separator className="context-menu-separator" />
+							{canRestore ? (
+								<ContextMenu.Item
+									className="context-menu-item"
+									onSelect={() => void handleRestore()}
+									disabled={restoreBusy}
+								>
+									<Undo2 size={14} />
+									<span>Restore</span>
+								</ContextMenu.Item>
+							) : null}
 							<ContextMenu.Item
 								className="context-menu-item"
 								onSelect={handleRenameOpen}
+								disabled={isTrashLocation}
 							>
 								<Pencil size={14} />
 								<span>Rename</span>
@@ -212,13 +245,10 @@ export function FileContextMenu({ entry, children }: FileContextMenuProps) {
 								onSelect={handleDeleteOpen}
 							>
 								<Trash2 size={14} />
-								<span>Delete</span>
+								<span>{isTrashLocation ? 'Delete permanently' : 'Move to trash'}</span>
 							</ContextMenu.Item>
 							<ContextMenu.Separator className="context-menu-separator" />
-							<ContextMenu.Item
-								className="context-menu-item"
-								onSelect={handlePropertiesOpen}
-							>
+							<ContextMenu.Item className="context-menu-item" onSelect={handlePropertiesOpen}>
 								<Info size={14} />
 								<span>Properties</span>
 							</ContextMenu.Item>

@@ -12,6 +12,7 @@ import { ListView } from './ListView'
 import { GridView } from './GridView'
 import { PhotoView } from './PhotoView'
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts'
+import { isTrashFilesPath } from '@/lib/trash'
 
 export function FileList() {
 	const entries = useFileStore(selectEntries)
@@ -56,10 +57,13 @@ export function FileList() {
 	}
 
 	if (viewMode !== "photo" && entries.length === 0) {
+		const emptyMessage = isTrashFilesPath(currentPath)
+			? 'Trash is empty'
+			: 'This folder is empty'
 		return (
 			<div className="file-list-empty" onClick={handleBackgroundClick}>
 				<FolderOpen size={48} strokeWidth={1} />
-				<p>This folder is empty</p>
+				<p>{emptyMessage}</p>
 			</div>
 		)
 	}
