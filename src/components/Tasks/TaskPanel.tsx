@@ -81,6 +81,47 @@ function formatPath(path: string): string {
 	return path ? `/${path}` : "/";
 }
 
+function formatDirectoryPath(path: string): string {
+	const formattedPath = formatPath(path);
+	if (formattedPath === "/") {
+		return formattedPath;
+	}
+	return `${formattedPath}/`;
+}
+
+function formatSourceSelection(task: BackgroundTask): string {
+	const sourceDirPath = formatPath(task.sourcePath);
+	if (task.names.length === 0) {
+		return sourceDirPath;
+	}
+
+	if (task.names.length === 1) {
+		return sourceDirPath === "/"
+			? `/${task.names[0]}`
+			: `${sourceDirPath}/${task.names[0]}`;
+	}
+
+	return sourceDirPath === "/"
+		? `/{${task.names.length} items}`
+		: `${sourceDirPath}/{${task.names.length} items}`;
+}
+
+function formatTransferPath(task: BackgroundTask): string {
+	return `${formatSourceSelection(task)} -> ${formatDirectoryPath(task.targetPath)}`;
+}
+
+function formatTaskItems(task: BackgroundTask): string {
+	if (task.names.length === 0) {
+		return "No items";
+	}
+
+	if (task.names.length <= 3) {
+		return task.names.join(", ");
+	}
+
+	return `${task.names.slice(0, 2).join(", ")} +${task.names.length - 2} more`;
+}
+
 function includesTask(task: BackgroundTask, filter: TaskFilter): boolean {
 	if (filter === "all") return true;
 	if (filter === "active") return isActiveTask(task);
@@ -270,8 +311,11 @@ export function TaskPanel() {
 					<span className="task-operation">{formatOperation(task)}</span>
 				</div>
 
-				<div className="task-paths" title={`${task.sourcePath} -> ${task.targetPath}`}>
-					{formatPath(task.sourcePath)} {"->"} {formatPath(task.targetPath)}
+				<div
+					className="task-paths"
+					title={`${formatTransferPath(task)}\nItems: ${task.names.join(", ")}`}
+				>
+					{formatTransferPath(task)}
 				</div>
 
 				<div className="task-progress-row">
@@ -379,21 +423,30 @@ export function TaskPanel() {
 							{jumpTask && (
 								<div className="task-jump-paths">
 									<div className="task-jump-item">
-										<span className="task-jump-label">Source</span>
+										<span className="task-jump-label">From</span>
 										<span
 											className="task-jump-value"
-											title={formatPath(jumpTask.sourcePath)}
+											title={formatSourceSelection(jumpTask)}
 										>
-											{formatPath(jumpTask.sourcePath)}
+											{formatSourceSelection(jumpTask)}
 										</span>
 									</div>
 									<div className="task-jump-item">
-										<span className="task-jump-label">Target</span>
+										<span className="task-jump-label">To</span>
 										<span
 											className="task-jump-value"
-											title={formatPath(jumpTask.targetPath)}
+											title={formatDirectoryPath(jumpTask.targetPath)}
 										>
-											{formatPath(jumpTask.targetPath)}
+											{formatDirectoryPath(jumpTask.targetPath)}
+										</span>
+									</div>
+									<div className="task-jump-item">
+										<span className="task-jump-label">Items</span>
+										<span
+											className="task-jump-value"
+											title={jumpTask.names.join(", ")}
+										>
+											{formatTaskItems(jumpTask)}
 										</span>
 									</div>
 								</div>
