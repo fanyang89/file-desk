@@ -28,6 +28,13 @@ export class TaskCancelledError extends Error {
 	}
 }
 
+class MoveSourceCleanupError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = "MoveSourceCleanupError";
+	}
+}
+
 function assertValidName(name: string): string {
 	if (name.length === 0) {
 		throw new Error("Name is required");
@@ -102,10 +109,16 @@ async function moveNode(
 	}
 
 	await copyNode(sourceAbsPath, targetAbsPath, isDirectory);
-	if (isDirectory) {
-		await fs.rm(sourceAbsPath, { recursive: true, force: false });
-	} else {
-		await fs.unlink(sourceAbsPath);
+	try {
+		if (isDirectory) {
+			await fs.rm(sourceAbsPath, { recursive: true, force: false });
+		} else {
+			await fs.unlink(sourceAbsPath);
+		}
+	} catch (err) {
+		throw new MoveSourceCleanupError(
+			`Failed to clean up source after move: ${(err as Error).message}`,
+		);
 	}
 }
 
@@ -146,6 +159,20 @@ async function transferWithOverwrite({
 			await moveNode(sourceAbsPath, targetAbsPath, isDirectory);
 		}
 	} catch (err) {
+		if (err instanceof MoveSourceCleanupError) {
+			try {
+				await removeNode(backupAbsPath);
+			} catch (cleanupErr) {
+				console.warn(
+					`Failed to clean up overwrite backup for "${name}": ${(cleanupErr as Error).message}`,
+				);
+			}
+
+			throw new Error(
+				`${err.message}. Destination data was kept to avoid data loss.`,
+			);
+		}
+
 		try {
 			if (await pathExists(targetAbsPath)) {
 				await removeNode(targetAbsPath);
