@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
 	LayoutGrid,
 	List,
@@ -15,7 +15,7 @@ import {
 	Image,
 } from "lucide-react";
 import { DropdownMenu } from "radix-ui";
-import { Theme } from "@radix-ui/themes";
+import { Theme, Tooltip } from "@radix-ui/themes";
 import {
 	useFileStore,
 	selectCurrentPath,
@@ -42,6 +42,20 @@ function normalizePathInput(input: string): string {
 
 function formatPathForInput(path: string): string {
 	return path ? `/${path}` : "/";
+}
+
+function IconHelpTooltip({
+	content,
+	children,
+}: {
+	content: string;
+	children: ReactNode;
+}) {
+	return (
+		<Tooltip content={content} side="top" delayDuration={120}>
+			<span style={{ display: "inline-flex" }}>{children}</span>
+		</Tooltip>
+	);
 }
 
 export function Toolbar() {
@@ -220,15 +234,16 @@ export function Toolbar() {
 		<div className="toolbar">
 			<div className="toolbar-top">
 				<div className="toolbar-nav">
-					<button
-						className="toolbar-btn"
-						onClick={handleGoUp}
-						title="Go up one level"
-						aria-label="Go up one level"
-						disabled={!canGoUp}
-					>
-						<ArrowUp size={18} />
-					</button>
+					<IconHelpTooltip content="Go up one level">
+						<button
+							className="toolbar-btn"
+							onClick={handleGoUp}
+							aria-label="Go up one level"
+							disabled={!canGoUp}
+						>
+							<ArrowUp size={18} />
+						</button>
+					</IconHelpTooltip>
 					<div
 						className={`path-bar ${isEditingPath ? "editing" : ""}`}
 						onClick={handlePathBarClick}
@@ -252,15 +267,16 @@ export function Toolbar() {
 							</form>
 						) : (
 							<>
-								<div className="path-breadcrumbs">
-									<button
-										className="path-segment path-home"
-										onClick={() => navigate("")}
-										title="Root"
-										disabled={loading}
-									>
-										<Home size={14} />
-									</button>
+							<div className="path-breadcrumbs">
+									<IconHelpTooltip content="Root">
+										<button
+											className="path-segment path-home"
+											onClick={() => navigate("")}
+											disabled={loading}
+										>
+											<Home size={14} />
+										</button>
+									</IconHelpTooltip>
 									{segments.map((segment, i) => {
 										const path = segments.slice(0, i + 1).join("/");
 										return (
@@ -278,15 +294,16 @@ export function Toolbar() {
 										);
 									})}
 								</div>
-								<button
-									className="path-edit-btn"
-									onClick={handlePathEdit}
-									title="Edit path"
-									aria-label="Edit path"
-									disabled={loading}
-								>
-									<Pencil size={14} />
-								</button>
+								<IconHelpTooltip content="Edit path">
+									<button
+										className="path-edit-btn"
+										onClick={handlePathEdit}
+										aria-label="Edit path"
+										disabled={loading}
+									>
+										<Pencil size={14} />
+									</button>
+								</IconHelpTooltip>
 							</>
 						)}
 					</div>
@@ -295,31 +312,31 @@ export function Toolbar() {
 
 			<div className="toolbar-bottom">
 				<div className="toolbar-actions toolbar-actions-primary">
-					<button
-						className="toolbar-btn"
-						onClick={handleNewFolderOpen}
-						title="New Folder"
-					>
-						<FolderPlus size={18} />
-					</button>
+					<IconHelpTooltip content="New Folder">
+						<button className="toolbar-btn" onClick={handleNewFolderOpen}>
+							<FolderPlus size={18} />
+						</button>
+					</IconHelpTooltip>
 
-					<button
-						className="toolbar-btn"
-						onClick={() => fileInputRef.current?.click()}
-						title="Upload"
-					>
-						<Upload size={18} />
-					</button>
+					<IconHelpTooltip content="Upload">
+						<button
+							className="toolbar-btn"
+							onClick={() => fileInputRef.current?.click()}
+						>
+							<Upload size={18} />
+						</button>
+					</IconHelpTooltip>
 
-					<button
-						className="toolbar-btn"
-						onClick={() => void handleRefresh()}
-						title="Refresh"
-						aria-label="Refresh current pane"
-						disabled={loading}
-					>
-						<RefreshCw size={18} className={loading ? "spinner" : undefined} />
-					</button>
+					<IconHelpTooltip content="Refresh">
+						<button
+							className="toolbar-btn"
+							onClick={() => void handleRefresh()}
+							aria-label="Refresh current pane"
+							disabled={loading}
+						>
+							<RefreshCw size={18} className={loading ? "spinner" : undefined} />
+						</button>
+					</IconHelpTooltip>
 					<input
 						ref={fileInputRef}
 						type="file"
@@ -328,32 +345,36 @@ export function Toolbar() {
 						style={{ display: "none" }}
 					/>
 
-					<button
-						className="toolbar-btn"
-						onClick={() => handleTransfer("copy")}
-						title="Copy selected to other pane"
-						disabled={!canTransfer}
-					>
-						<Copy size={18} />
-					</button>
+					<IconHelpTooltip content="Copy selected to other pane">
+						<button
+							className="toolbar-btn"
+							onClick={() => handleTransfer("copy")}
+							disabled={!canTransfer}
+						>
+							<Copy size={18} />
+						</button>
+					</IconHelpTooltip>
 
-					<button
-						className="toolbar-btn"
-						onClick={() => handleTransfer("move")}
-						title="Move selected to other pane"
-						disabled={!canTransfer}
-					>
-						<Scissors size={18} />
-					</button>
+					<IconHelpTooltip content="Move selected to other pane">
+						<button
+							className="toolbar-btn"
+							onClick={() => handleTransfer("move")}
+							disabled={!canTransfer}
+						>
+							<Scissors size={18} />
+						</button>
+					</IconHelpTooltip>
 				</div>
 
 				<div className="toolbar-actions toolbar-actions-secondary">
 					<DropdownMenu.Root>
-						<DropdownMenu.Trigger asChild>
-							<button className="toolbar-btn" title="Sort">
-								<ArrowUpDown size={18} />
-							</button>
-						</DropdownMenu.Trigger>
+						<Tooltip content="Sort" side="top" delayDuration={120}>
+							<DropdownMenu.Trigger asChild>
+								<button className="toolbar-btn">
+									<ArrowUpDown size={18} />
+								</button>
+							</DropdownMenu.Trigger>
+						</Tooltip>
 						<DropdownMenu.Portal>
 							<Theme
 								appearance="light"
@@ -394,27 +415,30 @@ export function Toolbar() {
 					</DropdownMenu.Root>
 
 					<div className="view-toggle">
-						<button
-							className={`toolbar-btn ${viewMode === "list" ? "active" : ""}`}
-							onClick={() => setViewMode("list")}
-							title="List view"
-						>
-							<List size={18} />
-						</button>
-						<button
-							className={`toolbar-btn ${viewMode === "grid" ? "active" : ""}`}
-							onClick={() => setViewMode("grid")}
-							title="Grid view"
-						>
-							<LayoutGrid size={18} />
-						</button>
-						<button
-							className={`toolbar-btn ${viewMode === "photo" ? "active" : ""}`}
-							onClick={() => setViewMode("photo")}
-							title="Photo view"
-						>
-							<Image size={18} />
-						</button>
+						<IconHelpTooltip content="List view">
+							<button
+								className={`toolbar-btn ${viewMode === "list" ? "active" : ""}`}
+								onClick={() => setViewMode("list")}
+							>
+								<List size={18} />
+							</button>
+						</IconHelpTooltip>
+						<IconHelpTooltip content="Grid view">
+							<button
+								className={`toolbar-btn ${viewMode === "grid" ? "active" : ""}`}
+								onClick={() => setViewMode("grid")}
+							>
+								<LayoutGrid size={18} />
+							</button>
+						</IconHelpTooltip>
+						<IconHelpTooltip content="Photo view">
+							<button
+								className={`toolbar-btn ${viewMode === "photo" ? "active" : ""}`}
+								onClick={() => setViewMode("photo")}
+							>
+								<Image size={18} />
+							</button>
+						</IconHelpTooltip>
 					</div>
 				</div>
 			</div>
