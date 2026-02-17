@@ -29,6 +29,7 @@ jobs:
           OPENAI__API_BASE: ${{ secrets.PR_AGENT_OPENAI_API_BASE }}
           CONFIG__MODEL: ${{ secrets.PR_AGENT_MODEL }}
           CONFIG__FALLBACK_MODELS: '["${{ secrets.PR_AGENT_MODEL }}"]'
+          GITHUB_ACTION_CONFIG__PR_ACTIONS: '["opened", "reopened", "ready_for_review", "review_requested", "synchronize"]'
           GITHUB_ACTION_CONFIG__AUTO_REVIEW: 'true'
           GITHUB_ACTION_CONFIG__AUTO_DESCRIBE: 'true'
           GITHUB_ACTION_CONFIG__AUTO_IMPROVE: 'true'
