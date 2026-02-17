@@ -62,19 +62,6 @@ function formatPath(path: string): string {
 	return path ? `/${path}` : '/'
 }
 
-function isLikelyCaseInsensitiveFileSystem(): boolean {
-	if (typeof navigator === 'undefined') {
-		return false
-	}
-	const navWithUserAgentData = navigator as Navigator & {
-		userAgentData?: { platform?: string }
-	}
-
-	const platform =
-		navWithUserAgentData.userAgentData?.platform ?? navigator.platform ?? ''
-	return /mac|win/i.test(platform)
-}
-
 function normalizeNameForConflict(name: string, caseInsensitive: boolean): string {
 	return caseInsensitive ? name.toLowerCase() : name
 }
@@ -384,8 +371,11 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 
 		setTransferBusy(true)
 		try {
-			const { files: targetEntries } = await listFiles(targetPath)
-			const caseInsensitiveConflict = isLikelyCaseInsensitiveFileSystem()
+			const {
+				files: targetEntries,
+				caseSensitiveNames,
+			} = await listFiles(targetPath)
+			const caseInsensitiveConflict = caseSensitiveNames === false
 			const targetNameSet = new Set(
 				targetEntries.map((entry) =>
 					normalizeNameForConflict(entry.name, caseInsensitiveConflict),

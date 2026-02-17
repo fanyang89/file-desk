@@ -54,6 +54,10 @@ function parseBody(req: IncomingMessage): Promise<Record<string, unknown>> {
 	});
 }
 
+function isLikelyCaseSensitiveServerFs(): boolean {
+	return process.platform !== "darwin" && process.platform !== "win32";
+}
+
 function normalizeUploadRelativePath(filename: string): string {
 	const normalized = filename
 		.replace(/\\/g, "/")
@@ -209,7 +213,11 @@ export async function handleListFiles(
 				: immediateEntries;
 		}
 
-		sendJson(res, { files, currentPath: dirPath });
+		sendJson(res, {
+			files,
+			currentPath: dirPath,
+			caseSensitiveNames: isLikelyCaseSensitiveServerFs(),
+		});
 	} catch (err) {
 		sendError(res, (err as Error).message, 500);
 	}
