@@ -707,6 +707,102 @@ function wait(ms: number): Promise<void> {
 	});
 }
 
+class MockTaskCancelledError extends Error {
+	constructor() {
+		super("Task cancelled");
+		this.name = "MockTaskCancelledError";
+	}
+}
+
+function countMockNodeUnits(node: MockNode): number {
+	if (node.kind === "file") {
+		return 1;
+	}
+
+	let count = 1;
+	for (const childNode of node.children.values()) {
+		count += countMockNodeUnits(childNode);
+	}
+
+	return count;
+}
+
+function estimateMockTransferUnits(sourcePath: string, names: string[]): number {
+	try {
+		const sourceDir = getDir(sourcePath);
+		if (!sourceDir) {
+			return names.length;
+		}
+
+		let totalUnits = 0;
+		for (const name of names) {
+			const sourceNode = sourceDir.children.get(name);
+			if (!sourceNode) {
+				return names.length;
+			}
+			totalUnits += countMockNodeUnits(sourceNode);
+		}
+
+		return Math.max(totalUnits, names.length);
+	} catch {
+		return names.length;
+	}
+}
+
+function assertTaskNotCancelled(task: MockTaskRecord): void {
+	if (task.cancelRequested) {
+		throw new MockTaskCancelledError();
+	}
+}
+
+async function advanceTaskProgress(
+	task: MockTaskRecord,
+	currentItem: string,
+	increment = 1,
+): Promise<void> {
+	task.processedItems = Math.min(task.totalItems, task.processedItems + increment);
+	task.currentItem = currentItem;
+	task.updatedAt = now();
+	await wait(40);
+}
+
+async function copyMockNodeWithProgress({
+	task,
+	sourceNode,
+	targetDir,
+	name,
+	relativePath,
+}: {
+	task: MockTaskRecord;
+	sourceNode: MockNode;
+	targetDir: MockDir;
+	name: string;
+	relativePath: string;
+}): Promise<void> {
+	assertTaskNotCancelled(task);
+
+	if (sourceNode.kind === "file") {
+		targetDir.children.set(name, cloneNode(sourceNode));
+		await advanceTaskProgress(task, relativePath);
+		return;
+	}
+
+	const copiedDir = createDir(name);
+	copiedDir.createdAt = sourceNode.createdAt;
+	targetDir.children.set(name, copiedDir);
+	await advanceTaskProgress(task, relativePath);
+
+	for (const [childName, childNode] of sourceNode.children) {
+		await copyMockNodeWithProgress({
+			task,
+			sourceNode: childNode,
+			targetDir: copiedDir,
+			name: childName,
+			relativePath: joinPath(relativePath, childName),
+		});
+	}
+}
+
 async function runMockTask(taskId: string): Promise<void> {
 	const task = mockTasks.get(taskId);
 	if (!task || task.status !== "queued") {
@@ -716,31 +812,80 @@ async function runMockTask(taskId: string): Promise<void> {
 	setTaskStatus(task, "running");
 
 	try {
+		const normalizedSourcePath = normalizePath(task.sourcePath);
+		const normalizedTargetPath = normalizePath(task.targetPath);
+
+		if (normalizedSourcePath === normalizedTargetPath) {
+			throw new Error("Source and target directories cannot be the same");
+		}
+
+		const sourceDir = getDir(normalizedSourcePath);
+		if (!sourceDir) {
+			throw new Error(`Directory not found: /${normalizedSourcePath}`);
+		}
+
+		const targetDir = getDir(normalizedTargetPath);
+		if (!targetDir) {
+			throw new Error(`Directory not found: /${normalizedTargetPath}`);
+		}
+
+		const overwriteNameSet = new Set(task.overwriteNames);
+
 		for (let i = 0; i < task.names.length; i += 1) {
-			if (task.cancelRequested) {
-				setTaskStatus(task, "cancelled");
-				task.currentItem = null;
-				return;
+			const name = task.names[i];
+			assertTaskNotCancelled(task);
+
+			const sourceNode = sourceDir.children.get(name);
+			if (!sourceNode) {
+				throw new Error(`"${name}" does not exist`);
 			}
 
-			const name = task.names[i];
-			await wait(80);
-			const overwriteNames = task.overwriteNames.includes(name) ? [name] : [];
-			transferMockEntries(
-				task.operation,
-				task.sourcePath,
-				task.targetPath,
-				[name],
-				overwriteNames,
-			);
-			task.processedItems = i + 1;
-			task.currentItem = name;
-			task.updatedAt = now();
+			if (sourceNode.kind === "dir") {
+				const sourceNodePath = joinPath(normalizedSourcePath, name);
+				if (isSubPath(sourceNodePath, normalizedTargetPath)) {
+					throw new Error(
+						`Cannot ${task.operation} "${name}" into its own subdirectory`,
+					);
+				}
+			}
+
+			const targetExists = targetDir.children.has(name);
+			if (targetExists && !overwriteNameSet.has(name)) {
+				throw new Error(`"${name}" already exists in target directory`);
+			}
+
+			if (targetExists) {
+				targetDir.children.delete(name);
+			}
+
+			if (task.operation === "copy") {
+				await copyMockNodeWithProgress({
+					task,
+					sourceNode,
+					targetDir,
+					name,
+					relativePath: name,
+				});
+			} else {
+				sourceDir.children.delete(name);
+				sourceNode.modifiedAt = nowIso();
+				targetDir.children.set(name, sourceNode);
+				await advanceTaskProgress(task, name, countMockNodeUnits(sourceNode));
+			}
+
+			touchDir(normalizedSourcePath);
+			touchDir(normalizedTargetPath);
 		}
 
 		task.currentItem = null;
 		setTaskStatus(task, "completed");
 	} catch (err) {
+		if (err instanceof MockTaskCancelledError) {
+			task.currentItem = null;
+			setTaskStatus(task, "cancelled");
+			return;
+		}
+
 		task.currentItem = null;
 		task.error = (err as Error).message;
 		setTaskStatus(task, "failed");
@@ -790,17 +935,23 @@ export function mockCreateCopyMoveTask({
 		throw new Error("No files selected");
 	}
 
+	const normalizedSourcePath = normalizePath(sourcePath);
+	const totalItems = estimateMockTransferUnits(
+		normalizedSourcePath,
+		normalizedNames,
+	);
+
 	const timestamp = now();
 	const task: MockTaskRecord = {
 		id: createMockTaskId(),
 		operation,
-		sourcePath: normalizePath(sourcePath),
+		sourcePath: normalizedSourcePath,
 		targetPath: normalizePath(targetPath),
 		names: normalizedNames,
 		overwriteNames: normalizedOverwriteNames,
 		status: "queued",
 		processedItems: 0,
-		totalItems: normalizedNames.length,
+		totalItems,
 		currentItem: null,
 		error: null,
 		cancelRequested: false,

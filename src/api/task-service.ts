@@ -306,8 +306,6 @@ async function executeTask(taskId: string): Promise<void> {
 			},
 			data: {
 				status: TaskStatus.COMPLETED,
-				processedItems: names.length,
-				totalItems: names.length,
 				currentItem: null,
 				finishedAt: new Date(),
 				error: null,
