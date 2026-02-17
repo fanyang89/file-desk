@@ -264,6 +264,40 @@ input {
 	flex-shrink: 0;
 }
 
+.task-panel-header-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.task-clear-btn {
+	border: 1px solid var(--gray-a5);
+	background: var(--gray-a2);
+	color: var(--gray-11);
+	border-radius: var(--radius-2);
+	padding: 4px 8px;
+	font-size: 11px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+	cursor: pointer;
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease,
+		color 0.15s ease;
+}
+
+.task-clear-btn:hover {
+	background: var(--gray-a3);
+	border-color: var(--gray-a6);
+	color: var(--gray-12);
+}
+
+.task-clear-btn:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+}
+
 .task-panel-scroll {
 	padding: 10px;
 	overflow: auto;
