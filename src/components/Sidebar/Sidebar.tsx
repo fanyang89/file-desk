@@ -1,10 +1,22 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Popover } from 'radix-ui'
 import { Theme, Tooltip } from '@radix-ui/themes'
-import { FolderPlus, HardDrive, ListTodo, Plus, Trash2 } from 'lucide-react'
+import { FolderPlus, HardDrive, ListTodo, Loader2, Plus, Trash2 } from 'lucide-react'
 import { TaskPanel } from '@/components/Tasks/TaskPanel'
 import { useFileStore, usePanePath } from '@/store/file-store'
+import { listTasks } from '@/lib/api-client'
+import type { BackgroundTask } from '@/types'
 
 const PATH_DIFF_MIN_LENGTH = 18
+const TASK_FETCH_LIMIT = 120
+
+function isActiveTask(task: BackgroundTask): boolean {
+	return task.status === 'queued' || task.status === 'running'
+}
+
+function formatTaskOperation(task: BackgroundTask): string {
+	return task.operation === 'copy' ? 'Copy' : 'Move'
+}
 
 function formatPath(path: string): string {
 	return path || '/'
@@ -91,6 +103,56 @@ export function Sidebar() {
 	const deleteDirPair = useFileStore((s) => s.deleteDirPair)
 	const leftPath = usePanePath('left')
 	const rightPath = usePanePath('right')
+	const [activeTasks, setActiveTasks] = useState<BackgroundTask[]>([])
+	const [taskStatusError, setTaskStatusError] = useState<string | null>(null)
+
+	useEffect(() => {
+		let disposed = false
+		let inFlight = false
+
+		const tick = async () => {
+			if (disposed || inFlight) return
+			inFlight = true
+			try {
+				const { tasks } = await listTasks(TASK_FETCH_LIMIT)
+				if (!disposed) {
+					setActiveTasks(tasks.filter((task) => isActiveTask(task)))
+					setTaskStatusError(null)
+				}
+			} catch (err) {
+				if (!disposed) {
+					setTaskStatusError((err as Error).message)
+				}
+			} finally {
+				inFlight = false
+			}
+		}
+
+		void tick()
+		const intervalId = window.setInterval(() => {
+			void tick()
+		}, 1500)
+
+		return () => {
+			disposed = true
+			window.clearInterval(intervalId)
+		}
+	}, [])
+
+	const primaryActiveTask = useMemo(() => {
+		return activeTasks.find((task) => task.status === 'running') ?? activeTasks[0] ?? null
+	}, [activeTasks])
+
+	const activeTaskCount = activeTasks.length
+	const hasActiveTasks = activeTaskCount > 0
+	const taskStatusTitle = hasActiveTasks
+		? `${activeTaskCount} active task${activeTaskCount === 1 ? '' : 's'}`
+		: 'No active tasks'
+	const taskStatusDetail = taskStatusError
+		? 'Task status unavailable'
+		: primaryActiveTask
+			? formatTaskOperation(primaryActiveTask)
+			: 'Idle'
 
 	const handleCreateDirPair = () => {
 		createDirPair(leftPath, rightPath)
@@ -125,40 +187,52 @@ export function Sidebar() {
 						>
 							<FolderPlus size={16} />
 						</button>
-						<Popover.Root>
-							<Popover.Trigger asChild>
-								<button
-									type='button'
-									className='task-popover-trigger'
-									aria-label='Open task panel'
-									title='Tasks'
-								>
-									<ListTodo size={16} />
-								</button>
-							</Popover.Trigger>
-							<Popover.Portal>
-								<Theme
-									appearance='light'
-									accentColor='indigo'
-									grayColor='slate'
-									panelBackground='solid'
-									radius='large'
-									scaling='100%'
-								>
-									<Popover.Content
-										className='task-popover-content'
-										side='right'
-										sideOffset={12}
-										align='start'
-									>
-										<TaskPanel />
-										<Popover.Arrow className='task-popover-arrow' />
-									</Popover.Content>
-								</Theme>
-							</Popover.Portal>
-						</Popover.Root>
 					</div>
 				</div>
+				<Popover.Root>
+					<Popover.Trigger asChild>
+						<button
+							type='button'
+							className={`sidebar-task-status ${hasActiveTasks ? 'active' : ''}`}
+							aria-label={
+								hasActiveTasks
+									? `Open task panel (${activeTaskCount} active)`
+									: 'Open task panel'
+							}
+							title='Tasks'
+						>
+							<div className='sidebar-task-status-main'>
+								{hasActiveTasks ? (
+									<Loader2 size={14} className='task-spin sidebar-task-status-icon' />
+								) : (
+									<ListTodo size={14} className='sidebar-task-status-icon' />
+								)}
+								<span className='sidebar-task-status-title'>{taskStatusTitle}</span>
+							</div>
+							<span className='sidebar-task-status-detail'>{taskStatusDetail}</span>
+						</button>
+					</Popover.Trigger>
+					<Popover.Portal>
+						<Theme
+							appearance='light'
+							accentColor='indigo'
+							grayColor='slate'
+							panelBackground='solid'
+							radius='large'
+							scaling='100%'
+						>
+							<Popover.Content
+								className='task-popover-content'
+								side='right'
+								sideOffset={12}
+								align='start'
+							>
+								<TaskPanel />
+								<Popover.Arrow className='task-popover-arrow' />
+							</Popover.Content>
+						</Theme>
+					</Popover.Portal>
+				</Popover.Root>
 				<nav className='sidebar-nav'>
 					{dirPairs.length === 0 ? (
 						<div className='sidebar-empty'>

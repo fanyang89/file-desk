@@ -98,6 +98,73 @@ input {
 	border-bottom: 1px solid var(--gray-a4);
 }
 
+.sidebar-task-status {
+	margin: 10px 10px 0;
+	padding: 8px 10px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	border: 1px solid var(--gray-a5);
+	border-radius: var(--radius-3);
+	background: var(--gray-a2);
+	color: var(--gray-11);
+	cursor: pointer;
+	transition:
+		border-color 0.15s ease,
+		background-color 0.15s ease,
+		color 0.15s ease,
+		box-shadow 0.15s ease;
+	min-width: 0;
+}
+
+.sidebar-task-status:hover {
+	background: var(--gray-a3);
+	border-color: var(--gray-a6);
+	color: var(--gray-12);
+}
+
+.sidebar-task-status:focus-visible {
+	outline: 2px solid var(--accent-a8);
+	outline-offset: 1px;
+}
+
+.sidebar-task-status.active {
+	background: color-mix(in oklab, var(--accent-a4) 58%, var(--color-panel));
+	border-color: var(--accent-a7);
+	box-shadow: inset 0 0 0 1px var(--accent-a6);
+	color: var(--accent-11);
+}
+
+.sidebar-task-status-main {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-width: 0;
+}
+
+.sidebar-task-status-icon {
+	flex-shrink: 0;
+}
+
+.sidebar-task-status-title {
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.sidebar-task-status-detail {
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	max-width: 45%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	text-align: right;
+	flex-shrink: 0;
+}
+
 .sidebar-header-main {
 	display: flex;
 	align-items: center;
@@ -136,34 +203,6 @@ input {
 
 .sidebar-title {
 	letter-spacing: 0.01em;
-}
-
-.task-popover-trigger {
-	width: 30px;
-	height: 30px;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	border-radius: var(--radius-3);
-	border: 1px solid var(--gray-a5);
-	background: var(--gray-a2);
-	color: var(--gray-11);
-	cursor: pointer;
-	transition:
-		background-color 0.15s ease,
-		border-color 0.15s ease,
-		color 0.15s ease;
-}
-
-.task-popover-trigger:hover {
-	background: var(--gray-a3);
-	border-color: var(--gray-a6);
-	color: var(--gray-12);
-}
-
-.task-popover-trigger:focus-visible {
-	outline: 2px solid var(--accent-a8);
-	outline-offset: 1px;
 }
 
 .task-popover-content {
@@ -952,6 +991,14 @@ input {
 		opacity: 1;
 		pointer-events: auto;
 }
+
+	.sidebar-task-status {
+		margin: 8px 8px 0;
+	}
+
+	.sidebar-task-status-detail {
+		max-width: 52%;
+	}
 
 	.task-popover-content {
 		width: calc(100vw - 16px);
