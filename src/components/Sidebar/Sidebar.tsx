@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Popover } from 'radix-ui'
 import { Theme, Tooltip } from '@radix-ui/themes'
 import { FolderPlus, HardDrive, ListTodo, Loader2, Plus, Trash2 } from 'lucide-react'
@@ -94,6 +94,20 @@ function PathValue({ path, comparedPath }: { path: string; comparedPath: string 
 	)
 }
 
+function IconHelpTooltip({
+	content,
+	children,
+}: {
+	content: string
+	children: ReactNode
+}) {
+	return (
+		<Tooltip content={content} side='top' delayDuration={120}>
+			<span style={{ display: 'inline-flex' }}>{children}</span>
+		</Tooltip>
+	)
+}
+
 export function Sidebar() {
 	const dirPairs = useFileStore((s) => s.dirPairs)
 	const activeDirPairId = useFileStore((s) => s.activeDirPairId)
@@ -171,47 +185,50 @@ export function Sidebar() {
 						<span className='sidebar-title'>File Desk</span>
 					</div>
 					<div className='sidebar-header-actions'>
-						<button
-							className='sidebar-header-action'
-							onClick={handleCreateDirPair}
-							title='Save current dir pair'
-							aria-label='Save current dir pair'
-						>
-							<Plus size={16} />
-						</button>
-						<button
-							className='sidebar-header-action'
-							onClick={handleCreateEmptyDirPair}
-							title='Create empty dir pair'
-							aria-label='Create empty dir pair'
-						>
-							<FolderPlus size={16} />
-						</button>
+						<IconHelpTooltip content='Save current dir pair'>
+							<button
+								className='sidebar-header-action'
+								onClick={handleCreateDirPair}
+								aria-label='Save current dir pair'
+							>
+								<Plus size={16} />
+							</button>
+						</IconHelpTooltip>
+						<IconHelpTooltip content='Create empty dir pair'>
+							<button
+								className='sidebar-header-action'
+								onClick={handleCreateEmptyDirPair}
+								aria-label='Create empty dir pair'
+							>
+								<FolderPlus size={16} />
+							</button>
+						</IconHelpTooltip>
 					</div>
 				</div>
 				<Popover.Root>
-					<Popover.Trigger asChild>
-						<button
-							type='button'
-							className={`sidebar-task-status ${hasActiveTasks ? 'active' : ''}`}
-							aria-label={
-								hasActiveTasks
-									? `Open task panel (${activeTaskCount} active)`
-									: 'Open task panel'
-							}
-							title='Tasks'
-						>
-							<div className='sidebar-task-status-main'>
-								{hasActiveTasks ? (
-									<Loader2 size={14} className='task-spin sidebar-task-status-icon' />
-								) : (
-									<ListTodo size={14} className='sidebar-task-status-icon' />
-								)}
-								<span className='sidebar-task-status-title'>{taskStatusTitle}</span>
-							</div>
-							<span className='sidebar-task-status-detail'>{taskStatusDetail}</span>
-						</button>
-					</Popover.Trigger>
+					<Tooltip content='Tasks' side='top' delayDuration={120}>
+						<Popover.Trigger asChild>
+							<button
+								type='button'
+								className={`sidebar-task-status ${hasActiveTasks ? 'active' : ''}`}
+								aria-label={
+									hasActiveTasks
+										? `Open task panel (${activeTaskCount} active)`
+										: 'Open task panel'
+								}
+							>
+								<div className='sidebar-task-status-main'>
+									{hasActiveTasks ? (
+										<Loader2 size={14} className='task-spin sidebar-task-status-icon' />
+									) : (
+										<ListTodo size={14} className='sidebar-task-status-icon' />
+									)}
+									<span className='sidebar-task-status-title'>{taskStatusTitle}</span>
+								</div>
+								<span className='sidebar-task-status-detail'>{taskStatusDetail}</span>
+							</button>
+						</Popover.Trigger>
+					</Tooltip>
 					<Popover.Portal>
 						<Theme
 							appearance='light'
@@ -277,14 +294,15 @@ export function Sidebar() {
 									</span>
 								</button>
 								<div className='sidebar-item-actions'>
-									<button
-										className='sidebar-item-action'
-										onClick={() => deleteDirPair(dirPair.id)}
-										title='Delete'
-										aria-label={`Delete ${dirPair.leftPath || '/'} | ${dirPair.rightPath || '/'}`}
-									>
-										<Trash2 size={14} />
-									</button>
+									<IconHelpTooltip content='Delete'>
+										<button
+											className='sidebar-item-action'
+											onClick={() => deleteDirPair(dirPair.id)}
+											aria-label={`Delete ${dirPair.leftPath || '/'} | ${dirPair.rightPath || '/'}`}
+										>
+											<Trash2 size={14} />
+										</button>
+									</IconHelpTooltip>
 								</div>
 							</div>
 						))
