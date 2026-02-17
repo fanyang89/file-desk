@@ -4,6 +4,7 @@ import {
 	List,
 	FolderPlus,
 	Upload,
+	RefreshCw,
 	Copy,
 	Scissors,
 	ArrowUpDown,
@@ -95,6 +96,15 @@ export function Toolbar() {
 		const direction: SortDirection =
 			sort.field === field && sort.direction === "asc" ? "desc" : "asc";
 		setSort({ field, direction });
+	};
+
+	const handleRefresh = async () => {
+		if (loading) return;
+		try {
+			await refresh();
+		} catch (err) {
+			showToast((err as Error).message, "error");
+		}
 	};
 
 	const handleNewFolderOpen = () => {
@@ -299,6 +309,16 @@ export function Toolbar() {
 						title="Upload"
 					>
 						<Upload size={18} />
+					</button>
+
+					<button
+						className="toolbar-btn"
+						onClick={() => void handleRefresh()}
+						title="Refresh"
+						aria-label="Refresh current pane"
+						disabled={loading}
+					>
+						<RefreshCw size={18} className={loading ? "spinner" : undefined} />
 					</button>
 					<input
 						ref={fileInputRef}
