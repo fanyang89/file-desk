@@ -4,6 +4,7 @@ import {
 	handleMkdir,
 	handleRename,
 	handleDelete,
+	handleDeleteImpact,
 	handleUpload,
 	handleDownload,
 	handlePreview,
@@ -36,6 +37,8 @@ export function fsApiPlugin(): Plugin {
 					handleMkdir(req, res);
 				} else if (pathname === "/api/rename" && req.method === "POST") {
 					handleRename(req, res);
+				} else if (pathname === "/api/delete-impact" && req.method === "POST") {
+					handleDeleteImpact(req, res);
 				} else if (pathname === "/api/delete" && req.method === "DELETE") {
 					handleDelete(req, res);
 				} else if (

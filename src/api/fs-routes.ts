@@ -22,6 +22,18 @@ interface FileEntry {
 	extension: string;
 }
 
+interface DeleteImpactStats {
+	fileCount: number;
+	directoryCount: number;
+	totalBytes: number;
+}
+
+interface DeleteImpactResponse extends DeleteImpactStats {
+	targetName: string;
+	isDirectory: boolean;
+	totalItems: number;
+}
+
 function isTruthyQuery(value: string | null): boolean {
 	if (!value) return false;
 	const normalized = value.trim().toLowerCase();
@@ -192,6 +204,70 @@ function hasNotBeenModified(
 	return Math.floor(sourceMtimeMs / 1000) <= Math.floor(modifiedSinceMs / 1000);
 }
 
+async function collectDeleteImpact(targetAbsPath: string): Promise<{
+	isDirectory: boolean;
+	stats: DeleteImpactStats;
+}> {
+	const targetStat = await fs.lstat(targetAbsPath);
+
+	if (!targetStat.isDirectory()) {
+		return {
+			isDirectory: false,
+			stats: {
+				fileCount: 1,
+				directoryCount: 0,
+				totalBytes: targetStat.size,
+			},
+		};
+	}
+
+	let fileCount = 0;
+	let directoryCount = 1;
+	let totalBytes = 0;
+
+	const walk = async (dirAbsPath: string): Promise<void> => {
+		const entries = await fs.readdir(dirAbsPath, { withFileTypes: true });
+
+		for (const entry of entries) {
+			const entryAbsPath = path.join(dirAbsPath, entry.name);
+
+			if (entry.isDirectory()) {
+				directoryCount += 1;
+				await walk(entryAbsPath);
+				continue;
+			}
+
+			if (entry.isFile()) {
+				const entryStat = await fs.stat(entryAbsPath);
+				fileCount += 1;
+				totalBytes += entryStat.size;
+				continue;
+			}
+
+			const entryStat = await fs.lstat(entryAbsPath);
+			if (entryStat.isDirectory()) {
+				directoryCount += 1;
+				await walk(entryAbsPath);
+				continue;
+			}
+
+			fileCount += 1;
+			totalBytes += entryStat.size;
+		}
+	};
+
+	await walk(targetAbsPath);
+
+	return {
+		isDirectory: true,
+		stats: {
+			fileCount,
+			directoryCount,
+			totalBytes,
+		},
+	};
+}
+
 async function toFileEntry(
 	fullPath: string,
 	name: string,
@@ -327,6 +403,29 @@ export async function handleDelete(req: IncomingMessage, res: ServerResponse) {
 			await fs.unlink(target);
 		}
 		sendJson(res, { success: true });
+	} catch (err) {
+		sendError(res, (err as Error).message, 500);
+	}
+}
+
+export async function handleDeleteImpact(
+	req: IncomingMessage,
+	res: ServerResponse,
+) {
+	try {
+		const body = (await parseBody(req)) as { path: string; name: string };
+		const target = safePath(path.join(body.path || "", body.name));
+		const { isDirectory, stats } = await collectDeleteImpact(target);
+		const response: DeleteImpactResponse = {
+			targetName: body.name,
+			isDirectory,
+			fileCount: stats.fileCount,
+			directoryCount: stats.directoryCount,
+			totalBytes: stats.totalBytes,
+			totalItems: stats.fileCount + stats.directoryCount,
+		};
+
+		sendJson(res, response);
 	} catch (err) {
 		sendError(res, (err as Error).message, 500);
 	}

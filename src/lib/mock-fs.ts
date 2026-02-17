@@ -432,6 +432,64 @@ export function mockDeleteEntry(
 	return { success: true };
 }
 
+function collectMockDeleteImpact(node: MockNode): {
+	fileCount: number;
+	directoryCount: number;
+	totalBytes: number;
+} {
+	if (node.kind === "file") {
+		return {
+			fileCount: 1,
+			directoryCount: 0,
+			totalBytes: node.content.length,
+		};
+	}
+
+	let fileCount = 0;
+	let directoryCount = 1;
+	let totalBytes = 0;
+
+	for (const childNode of node.children.values()) {
+		const childImpact = collectMockDeleteImpact(childNode);
+		fileCount += childImpact.fileCount;
+		directoryCount += childImpact.directoryCount;
+		totalBytes += childImpact.totalBytes;
+	}
+
+	return {
+		fileCount,
+		directoryCount,
+		totalBytes,
+	};
+}
+
+export function mockGetDeleteImpact(path: string, name: string): {
+	targetName: string;
+	isDirectory: boolean;
+	fileCount: number;
+	directoryCount: number;
+	totalItems: number;
+	totalBytes: number;
+} {
+	const normalizedPath = normalizePath(path);
+	const dir = getDir(normalizedPath);
+	if (!dir) throw new Error(`Directory not found: /${normalizedPath}`);
+
+	const targetName = assertValidName(name);
+	const node = dir.children.get(targetName);
+	if (!node) throw new Error(`"${targetName}" does not exist`);
+
+	const impact = collectMockDeleteImpact(node);
+	return {
+		targetName,
+		isDirectory: node.kind === "dir",
+		fileCount: impact.fileCount,
+		directoryCount: impact.directoryCount,
+		totalItems: impact.fileCount + impact.directoryCount,
+		totalBytes: impact.totalBytes,
+	};
+}
+
 function transferMockEntries(
 	operation: TaskOperation,
 	sourcePath: string,

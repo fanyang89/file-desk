@@ -1,9 +1,40 @@
+import { useEffect, useMemo, useState } from "react";
 import { AlertDialog } from "radix-ui";
-import { Button, Flex, Theme } from "@radix-ui/themes";
+import { Button, Flex, TextField, Theme } from "@radix-ui/themes";
 import type { FileEntry } from "@/types";
 import { useFileStore } from "@/store/file-store";
-import { deleteEntry } from "@/lib/api-client";
+import {
+	deleteEntry,
+	getDeleteImpact,
+	type DeleteImpactResponse,
+} from "@/lib/api-client";
+import { formatFileSize } from "@/lib/format";
 import { useToast } from "@/components/Toast/useToast";
+
+const LARGE_DELETE_ITEM_THRESHOLD = 1000;
+const LARGE_DELETE_BYTES_THRESHOLD = 1024 * 1024 * 1024;
+
+type DeleteImpactState =
+	| { status: "idle" }
+	| { status: "loading" }
+	| { status: "ready"; impact: DeleteImpactResponse }
+	| { status: "error"; message: string };
+
+function formatPath(path: string): string {
+	const normalized = path.replace(/\\/g, "/").replace(/^\/+/, "");
+	return normalized ? `/${normalized}` : "/";
+}
+
+function isLargeDelete(impact: DeleteImpactResponse): boolean {
+	return (
+		impact.totalItems >= LARGE_DELETE_ITEM_THRESHOLD ||
+		impact.totalBytes >= LARGE_DELETE_BYTES_THRESHOLD
+	);
+}
+
+function getDeletePhrase(name: string): string {
+	return `DELETE ${name}`;
+}
 
 interface DeleteConfirmDialogProps {
 	entry: FileEntry;
@@ -21,12 +52,96 @@ export function DeleteConfirmDialog({
 	const refresh = useFileStore((s) => s.refresh);
 	const clearSelection = useFileStore((s) => s.clearSelection);
 	const { showToast } = useToast();
+	const [impactState, setImpactState] = useState<DeleteImpactState>({
+		status: "idle",
+	});
+	const [requiresSecondClick, setRequiresSecondClick] = useState(false);
+	const [deletePhraseInput, setDeletePhraseInput] = useState("");
+	const [isDeleting, setIsDeleting] = useState(false);
 
-	const handleDelete = async () => {
+	const objectLabel = entry.isDirectory ? "folder" : "file";
+	const deletePhrase = useMemo(() => getDeletePhrase(entry.name), [entry.name]);
+	const impact = impactState.status === "ready" ? impactState.impact : null;
+	const isImpactLoading = impactState.status === "loading";
+	const isHighRiskDelete = impact ? isLargeDelete(impact) : false;
+	const requiresPhraseConfirm =
+		!isImpactLoading &&
+		(impactState.status === "error" || isHighRiskDelete);
+	const phraseMatches = deletePhraseInput === deletePhrase;
+	const isDeleteButtonDisabled =
+		isDeleting ||
+		targetPath === null ||
+		isImpactLoading ||
+		(requiresPhraseConfirm && !phraseMatches);
+
+	const deleteButtonLabel = (() => {
+		if (isDeleting) {
+			return "Deleting...";
+		}
+
+		if (requiresPhraseConfirm && impact) {
+			return `Delete ${impact.totalItems.toLocaleString()} items`;
+		}
+
+		if (requiresPhraseConfirm) {
+			return `Delete ${objectLabel}`;
+		}
+
+		if (requiresSecondClick) {
+			return "Confirm delete";
+		}
+
+		return `Delete ${objectLabel}`;
+	})();
+
+	useEffect(() => {
+		if (!open) {
+			setImpactState({ status: "idle" });
+			setRequiresSecondClick(false);
+			setDeletePhraseInput("");
+			setIsDeleting(false);
+			return;
+		}
+
+		setRequiresSecondClick(false);
+		setDeletePhraseInput("");
+
+		if (targetPath === null) {
+			setImpactState({
+				status: "error",
+				message: "No target directory selected",
+			});
+			return;
+		}
+
+		let cancelled = false;
+		setImpactState({ status: "loading" });
+
+		void getDeleteImpact(targetPath, entry.name)
+			.then((result) => {
+				if (cancelled) return;
+				setImpactState({ status: "ready", impact: result });
+			})
+			.catch((err) => {
+				if (cancelled) return;
+				setImpactState({
+					status: "error",
+					message: (err as Error).message,
+				});
+			});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [open, targetPath, entry.name, entry.path]);
+
+	const handleDeleteConfirm = async () => {
 		if (targetPath === null) {
 			showToast("No target directory selected", "error");
 			return;
 		}
+
+		setIsDeleting(true);
 
 		try {
 			await deleteEntry(targetPath, entry.name);
@@ -36,11 +151,51 @@ export function DeleteConfirmDialog({
 			onOpenChange(false);
 		} catch (err) {
 			showToast((err as Error).message, "error");
+		} finally {
+			setIsDeleting(false);
 		}
 	};
 
+	const handleDeleteClick = () => {
+		if (targetPath === null) {
+			showToast("No target directory selected", "error");
+			return;
+		}
+
+		if (isImpactLoading || isDeleting) {
+			return;
+		}
+
+		if (requiresPhraseConfirm) {
+			if (!phraseMatches) {
+				return;
+			}
+			void handleDeleteConfirm();
+			return;
+		}
+
+		if (!requiresSecondClick) {
+			setRequiresSecondClick(true);
+			return;
+		}
+
+		void handleDeleteConfirm();
+	};
+
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (isDeleting && !nextOpen) {
+			return;
+		}
+
+		onOpenChange(nextOpen);
+	};
+
+	const warningText = entry.isDirectory
+		? "All files and subfolders inside will also be deleted."
+		: "The selected file will be permanently deleted.";
+
 	return (
-		<AlertDialog.Root open={open} onOpenChange={onOpenChange}>
+		<AlertDialog.Root open={open} onOpenChange={handleOpenChange}>
 			<AlertDialog.Portal>
 				<Theme
 					appearance="light"
@@ -51,26 +206,104 @@ export function DeleteConfirmDialog({
 					scaling="100%"
 				>
 					<AlertDialog.Overlay className="dialog-overlay" />
-					<AlertDialog.Content className="dialog-content">
+					<AlertDialog.Content className="dialog-content delete-dialog-content">
 						<AlertDialog.Title className="dialog-title">
-							Delete
+							Delete {objectLabel}?
 						</AlertDialog.Title>
-						<AlertDialog.Description className="dialog-description">
-							Are you sure you want to delete "{entry.name}"?
-							{entry.isDirectory && " This will delete all contents inside."}
-							This action cannot be undone.
+						<AlertDialog.Description className="dialog-description delete-dialog-description">
+							Review the impact before deleting this {objectLabel}.
 						</AlertDialog.Description>
+						<div className="delete-impact-card">
+							<div className="delete-impact-name" title={entry.name}>
+								{entry.name}
+							</div>
+							<div className="delete-impact-path" title={formatPath(entry.path)}>
+								{formatPath(entry.path)}
+							</div>
+							<div className="delete-impact-warning">{warningText}</div>
+
+							{isImpactLoading && (
+								<div className="delete-impact-loading">
+									Calculating delete impact...
+								</div>
+							)}
+
+							{impact && (
+								<div className="delete-impact-stats">
+									<div className="delete-impact-stat">
+										<span>Files</span>
+										<strong>{impact.fileCount.toLocaleString()}</strong>
+									</div>
+									<div className="delete-impact-stat">
+										<span>Folders</span>
+										<strong>{impact.directoryCount.toLocaleString()}</strong>
+									</div>
+									<div className="delete-impact-stat">
+										<span>Total items</span>
+										<strong>{impact.totalItems.toLocaleString()}</strong>
+									</div>
+									<div className="delete-impact-stat">
+										<span>Estimated size</span>
+										<strong>{formatFileSize(impact.totalBytes)}</strong>
+									</div>
+								</div>
+							)}
+
+							{impactState.status === "error" && (
+								<div className="delete-impact-error">
+									{impactState.message}. Use phrase confirmation to proceed safely.
+								</div>
+							)}
+						</div>
+
+						<div className="delete-warning-line">This action cannot be undone.</div>
+
+						{requiresPhraseConfirm ? (
+							<div className="delete-phrase-wrap">
+								<label className="delete-phrase-label" htmlFor="delete-phrase-input">
+									Type <code>{deletePhrase}</code> to confirm deletion.
+								</label>
+								<TextField.Root
+									id="delete-phrase-input"
+									value={deletePhraseInput}
+									onChange={(event) => setDeletePhraseInput(event.target.value)}
+									placeholder={deletePhrase}
+									autoFocus
+									disabled={isDeleting}
+								/>
+								{deletePhraseInput.length > 0 && !phraseMatches ? (
+									<div className="delete-phrase-error">
+										Phrase must match exactly, including uppercase letters.
+									</div>
+								) : null}
+							</div>
+						) : (
+							<div
+								className={
+									requiresSecondClick
+										? "delete-double-confirm-note is-armed"
+										: "delete-double-confirm-note"
+								}
+							>
+								{requiresSecondClick
+									? "Click Delete again to start the deletion."
+									: "Two-step confirmation enabled: first click arms deletion."}
+							</div>
+						)}
+
 						<Flex className="dialog-actions" gap="2" justify="end">
 							<AlertDialog.Cancel asChild>
-								<Button variant="soft" color="gray">
+								<Button variant="soft" color="gray" disabled={isDeleting}>
 									Cancel
 								</Button>
 							</AlertDialog.Cancel>
-							<AlertDialog.Action asChild>
-								<Button color="red" onClick={handleDelete}>
-									Delete
-								</Button>
-							</AlertDialog.Action>
+							<Button
+								color="red"
+								disabled={isDeleteButtonDisabled}
+								onClick={handleDeleteClick}
+							>
+								{deleteButtonLabel}
+							</Button>
 						</Flex>
 					</AlertDialog.Content>
 				</Theme>
