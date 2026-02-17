@@ -24,9 +24,16 @@ import {
 	selectLoading,
 	useExplorerPaneId,
 } from "@/store/file-store";
-import { emptyTrash, uploadFiles } from "@/lib/api-client";
+import {
+	checkUploadConflicts,
+	emptyTrash,
+	isUploadConflictError,
+	uploadFileItems,
+	type UploadConflictStrategy,
+} from "@/lib/api-client";
 import { useToast } from "@/components/Toast/useToast";
 import { NewFolderDialog } from "@/components/Dialogs/NewFolderDialog";
+import { UploadConflictDialog } from "@/components/Dialogs/UploadConflictDialog";
 import type { SortField, SortDirection, TaskOperation } from "@/types";
 import { isTrashFilesPath } from "@/lib/trash";
 import {
@@ -40,6 +47,12 @@ function normalizePathInput(input: string): string {
 	const withoutLeadingSlash = normalized.replace(/^\/+/, "");
 	const collapsedSlashes = withoutLeadingSlash.replace(/\/{2,}/g, "/");
 	return collapsedSlashes.replace(/\/+$/, "");
+}
+
+interface PendingUploadConflict {
+	uploadPath: string;
+	files: File[];
+	conflictingNames: string[];
 }
 
 function formatPathForInput(path: string): string {
@@ -85,6 +98,9 @@ export function Toolbar() {
 	const [transferBusy, setTransferBusy] = useState(false);
 	const [emptyingTrash, setEmptyingTrash] = useState(false);
 	const isTrashView = isTrashFilesPath(currentPath);
+	const [uploadBusy, setUploadBusy] = useState(false);
+	const [pendingUploadConflict, setPendingUploadConflict] =
+		useState<PendingUploadConflict | null>(null);
 	const parentPath = currentPath
 		.split("/")
 		.filter(Boolean)
@@ -97,18 +113,86 @@ export function Toolbar() {
 		[entries],
 	);
 
+	const uploadWithStrategy = async (
+		uploadPath: string,
+		files: File[],
+		strategy: UploadConflictStrategy,
+	) => {
+		const { files: uploadedFiles } = await uploadFileItems(
+			uploadPath,
+			files.map((file) => ({ file, relativePath: file.name })),
+			{ onConflict: strategy },
+		);
+
+		showToast(
+			`Uploaded ${uploadedFiles.length} file${uploadedFiles.length === 1 ? "" : "s"}`,
+		);
+		await refresh();
+	};
+
 	const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const files = e.target.files;
-		if (!files || files.length === 0) return;
+		e.target.value = "";
+		if (!files || files.length === 0 || uploadBusy) return;
+
 		const uploadPath = currentPath;
+		const selectedFiles = Array.from(files);
+
+		setUploadBusy(true);
 		try {
-			await uploadFiles(uploadPath, files);
-			showToast("Files uploaded successfully");
-			await refresh();
+			const { conflicts } = await checkUploadConflicts(
+				uploadPath,
+				selectedFiles.map((file) => file.name),
+			);
+			if (conflicts.length > 0) {
+				setPendingUploadConflict({
+					uploadPath,
+					files: selectedFiles,
+					conflictingNames: conflicts,
+				});
+				return;
+			}
+
+			await uploadWithStrategy(uploadPath, selectedFiles, "cancel");
+		} catch (err) {
+			if (isUploadConflictError(err) && err.conflicts.length > 0) {
+				setPendingUploadConflict({
+					uploadPath,
+					files: selectedFiles,
+					conflictingNames: err.conflicts,
+				});
+				return;
+			}
+
+			showToast((err as Error).message, "error");
+		} finally {
+			setUploadBusy(false);
+		}
+	};
+
+	const handleUploadConflictOpenChange = (open: boolean) => {
+		if (open || uploadBusy) return;
+		setPendingUploadConflict(null);
+	};
+
+	const handleResolveUploadConflict = async (
+		strategy: UploadConflictStrategy,
+	) => {
+		if (!pendingUploadConflict || uploadBusy) return;
+
+		setUploadBusy(true);
+		try {
+			await uploadWithStrategy(
+				pendingUploadConflict.uploadPath,
+				pendingUploadConflict.files,
+				strategy,
+			);
+			setPendingUploadConflict(null);
 		} catch (err) {
 			showToast((err as Error).message, "error");
+		} finally {
+			setUploadBusy(false);
 		}
-		e.target.value = "";
 	};
 
 	const handleSort = (field: SortField) => {
@@ -484,6 +568,19 @@ export function Toolbar() {
 				targetPath={newFolderTargetPath}
 				open={newFolderOpen}
 				onOpenChange={handleNewFolderOpenChange}
+			/>
+			<UploadConflictDialog
+				open={pendingUploadConflict !== null}
+				busy={uploadBusy}
+				targetPath={pendingUploadConflict?.uploadPath ?? ""}
+				conflictingNames={pendingUploadConflict?.conflictingNames ?? []}
+				onOpenChange={handleUploadConflictOpenChange}
+				onConfirmAutoRename={() =>
+					void handleResolveUploadConflict("auto-rename")
+				}
+				onConfirmOverwrite={() =>
+					void handleResolveUploadConflict("overwrite")
+				}
 			/>
 		</div>
 	);

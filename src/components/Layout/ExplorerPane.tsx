@@ -9,9 +9,12 @@ import {
 	type PaneId,
 } from '@/store/file-store'
 import {
+	checkUploadConflicts,
+	isUploadConflictError,
 	listFiles,
 	uploadFileItems,
 	type UploadFileItem,
+	type UploadConflictStrategy,
 } from '@/lib/api-client'
 import { useToast } from '@/components/Toast/useToast'
 import {
@@ -20,6 +23,7 @@ import {
 	runCopyMoveTask,
 } from '@/lib/copy-move-task'
 import { TransferConflictDialog } from '@/components/Dialogs/TransferConflictDialog'
+import { UploadConflictDialog } from '@/components/Dialogs/UploadConflictDialog'
 import type { TaskOperation } from '@/types'
 
 function hasFileDrag(event: DragEvent<HTMLDivElement>): boolean {
@@ -178,6 +182,12 @@ interface PendingTransferConflict {
 	conflictingNames: string[]
 }
 
+interface PendingUploadConflict {
+	uploadPath: string
+	uploadItems: UploadFileItem[]
+	conflictingNames: string[]
+}
+
 export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 	const activePaneId = useFileStore((s) => s.activePaneId)
 	const setActivePane = useFileStore((s) => s.setActivePane)
@@ -185,10 +195,31 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 	const isActive = activePaneId === paneId
 	const [dropIntent, setDropIntent] = useState<DropIntent | null>(null)
 	const [transferBusy, setTransferBusy] = useState(false)
+	const [uploadBusy, setUploadBusy] = useState(false)
 	const [pendingTransferConflict, setPendingTransferConflict] =
 		useState<PendingTransferConflict | null>(null)
+	const [pendingUploadConflict, setPendingUploadConflict] =
+		useState<PendingUploadConflict | null>(null)
 	const dragDepthRef = useRef(0)
 	const isDragOver = dropIntent !== null
+
+	const executeUpload = async ({
+		uploadPath,
+		uploadItems,
+		strategy,
+	}: {
+		uploadPath: string
+		uploadItems: UploadFileItem[]
+		strategy: UploadConflictStrategy
+	}) => {
+		const { files: uploadedFiles } = await uploadFileItems(uploadPath, uploadItems, {
+			onConflict: strategy,
+		})
+		await refreshPaneById(paneId)
+		showToast(
+			`Uploaded ${uploadedFiles.length} file${uploadedFiles.length === 1 ? '' : 's'} to ${formatPath(uploadPath)}`,
+		)
+	}
 
 	const executePaneTransfer = async ({
 		names,
@@ -259,6 +290,29 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 		setPendingTransferConflict(null)
 	}
 
+	const handleUploadConflictOpenChange = (open: boolean) => {
+		if (open || uploadBusy) return
+		setPendingUploadConflict(null)
+	}
+
+	const handleResolveUploadConflict = async (strategy: UploadConflictStrategy) => {
+		if (!pendingUploadConflict || uploadBusy) return
+
+		setUploadBusy(true)
+		try {
+			await executeUpload({
+				uploadPath: pendingUploadConflict.uploadPath,
+				uploadItems: pendingUploadConflict.uploadItems,
+				strategy,
+			})
+			setPendingUploadConflict(null)
+		} catch (err) {
+			showToast((err as Error).message, 'error')
+		} finally {
+			setUploadBusy(false)
+		}
+	}
+
 	const handleActivate = () => {
 		if (!isActive) {
 			setActivePane(paneId)
@@ -322,22 +376,57 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 		setActivePane(paneId)
 
 		if (nextDropIntent === 'upload') {
-			const uploadPath = getPaneCurrentPath(paneId)
+			if (uploadBusy) {
+				showToast('Another upload is in progress', 'error')
+				return
+			}
 
+			const uploadPath = getPaneCurrentPath(paneId)
+			let uploadItems: UploadFileItem[] = []
+
+			setUploadBusy(true)
 			try {
-				const uploadItems = await collectDroppedUploadItems(event)
+				uploadItems = await collectDroppedUploadItems(event)
 				if (uploadItems.length === 0) {
 					showToast('No files found to upload', 'error')
 					return
 				}
 
-				await uploadFileItems(uploadPath, uploadItems)
-				await refreshPaneById(paneId)
-				showToast(
-					`Uploaded ${uploadItems.length} file${uploadItems.length === 1 ? '' : 's'} to ${formatPath(uploadPath)}`,
+				const { conflicts } = await checkUploadConflicts(
+					uploadPath,
+					uploadItems.map((item) => item.relativePath || item.file.name),
 				)
+				if (conflicts.length > 0) {
+					setPendingUploadConflict({
+						uploadPath,
+						uploadItems,
+						conflictingNames: conflicts,
+					})
+					return
+				}
+
+				await executeUpload({
+					uploadPath,
+					uploadItems,
+					strategy: 'cancel',
+				})
 			} catch (err) {
+				if (
+					isUploadConflictError(err) &&
+					err.conflicts.length > 0 &&
+					uploadItems.length > 0
+				) {
+					setPendingUploadConflict({
+						uploadPath,
+						uploadItems,
+						conflictingNames: err.conflicts,
+					})
+					return
+				}
+
 				showToast((err as Error).message, 'error')
+			} finally {
+				setUploadBusy(false)
 			}
 
 			return
@@ -441,6 +530,15 @@ export function ExplorerPane({ paneId }: ExplorerPaneProps) {
 				onOpenChange={handleTransferConflictOpenChange}
 				onConfirmOverwrite={() => void handleResolveConflict('overwrite')}
 				onConfirmSkip={() => void handleResolveConflict('skip')}
+			/>
+			<UploadConflictDialog
+				open={pendingUploadConflict !== null}
+				busy={uploadBusy}
+				targetPath={pendingUploadConflict?.uploadPath ?? ''}
+				conflictingNames={pendingUploadConflict?.conflictingNames ?? []}
+				onOpenChange={handleUploadConflictOpenChange}
+				onConfirmAutoRename={() => void handleResolveUploadConflict('auto-rename')}
+				onConfirmOverwrite={() => void handleResolveUploadConflict('overwrite')}
 			/>
 		</div>
 	)
