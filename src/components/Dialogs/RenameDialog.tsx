@@ -108,7 +108,7 @@ export function RenameDialog({
 							/>
 						)}
 						<Dialog.Close asChild>
-							<button className="dialog-close" aria-label="Close">
+							<button className="dialog-close" title="Close" aria-label="Close">
 								<X size={16} />
 							</button>
 						</Dialog.Close>
