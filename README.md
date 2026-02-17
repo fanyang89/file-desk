@@ -31,6 +31,22 @@ Note: On Vercel, the app falls back to a mock filesystem mode for demo purposes.
 
 ## How To Contribute
 
+### PR-Agent (GitHub Action)
+
+This repository includes PR-Agent workflow at `/.github/workflows/pr-agent.yml`.
+
+Add these repository secrets before using it:
+
+- `PR_AGENT_OPENAI_API_BASE`: OpenAI-compatible API base URL (for example, `https://your-gateway.example.com/v1`)
+- `PR_AGENT_OPENAI_KEY`: API key for that gateway
+- `PR_AGENT_MODEL`: model id exposed by your gateway
+
+After that, open or update a PR and PR-Agent will run automatically. You can also trigger commands in PR comments, for example:
+
+```text
+/review
+```
+
 ### Local Development
 
 ```bash
