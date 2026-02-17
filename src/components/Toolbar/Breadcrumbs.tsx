@@ -9,7 +9,7 @@ export function Breadcrumbs() {
 
 	return (
 		<div className="breadcrumbs">
-			<button className="breadcrumb-item" onClick={() => navigate("")}>
+			<button className="breadcrumb-item" onClick={() => navigate("")} title="Root">
 				<Home size={16} />
 			</button>
 			{segments.map((segment, i) => {

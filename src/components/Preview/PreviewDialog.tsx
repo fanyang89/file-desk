@@ -181,7 +181,7 @@ export function PreviewDialog() {
 									</button>
 								)}
 								<Dialog.Close asChild>
-									<button className="toolbar-btn" aria-label="Close">
+									<button className="toolbar-btn" title="Close" aria-label="Close">
 										<X size={18} />
 									</button>
 								</Dialog.Close>

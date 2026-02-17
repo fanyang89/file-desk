@@ -15,7 +15,7 @@ export function ToastProvider() {
 				<Toast.Description className="toast-description">
 					{message}
 				</Toast.Description>
-				<Toast.Close className="toast-close" aria-label="Close">
+				<Toast.Close className="toast-close" title="Close" aria-label="Close">
 					<X size={14} />
 				</Toast.Close>
 			</Toast.Root>
