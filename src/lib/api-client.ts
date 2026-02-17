@@ -3,6 +3,7 @@ import {
 	mockListFiles,
 	mockCreateFolder,
 	mockRenameEntry,
+	mockGetDeleteImpact,
 	mockDeleteEntry,
 	mockCreateCopyMoveTask,
 	mockGetTask,
@@ -30,6 +31,15 @@ export interface ListFilesOptions {
 
 interface SuccessResponse {
 	success: boolean;
+}
+
+export interface DeleteImpactResponse {
+	targetName: string;
+	isDirectory: boolean;
+	fileCount: number;
+	directoryCount: number;
+	totalItems: number;
+	totalBytes: number;
 }
 
 interface CreateTaskResponse {
@@ -294,6 +304,23 @@ export async function deleteEntry(
 		fallbackReason: "DELETE /api/delete",
 		errorFallback: "Failed to delete",
 		mockValue: () => mockDeleteEntry(path, name),
+	});
+}
+
+export async function getDeleteImpact(
+	path: string,
+	name: string,
+): Promise<DeleteImpactResponse> {
+	return requestJsonWithMock({
+		url: "/api/delete-impact",
+		init: {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ path, name }),
+		},
+		fallbackReason: "POST /api/delete-impact",
+		errorFallback: "Failed to evaluate delete impact",
+		mockValue: () => mockGetDeleteImpact(path, name),
 	});
 }
 
