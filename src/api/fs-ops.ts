@@ -136,6 +136,19 @@ async function createBackupPath(targetAbsPath: string): Promise<string> {
 	}
 }
 
+async function cleanupOverwriteBackup(
+	backupAbsPath: string,
+	name: string,
+): Promise<void> {
+	try {
+		await removeNode(backupAbsPath);
+	} catch (err) {
+		console.warn(
+			`Failed to clean up overwrite backup for "${name}": ${(err as Error).message}`,
+		);
+	}
+}
+
 async function transferWithOverwrite({
 	operation,
 	sourceAbsPath,
@@ -159,22 +172,19 @@ async function transferWithOverwrite({
 			await moveNode(sourceAbsPath, targetAbsPath, isDirectory);
 		}
 	} catch (err) {
-		if (err instanceof MoveSourceCleanupError) {
-			try {
-				await removeNode(backupAbsPath);
-			} catch (cleanupErr) {
-				console.warn(
-					`Failed to clean up overwrite backup for "${name}": ${(cleanupErr as Error).message}`,
+		const targetExists = await pathExists(targetAbsPath);
+		if (operation === "move" && targetExists) {
+			await cleanupOverwriteBackup(backupAbsPath, name);
+			if (err instanceof MoveSourceCleanupError) {
+				throw new Error(
+					`${err.message}. Destination data was kept to avoid data loss.`,
 				);
 			}
-
-			throw new Error(
-				`${err.message}. Destination data was kept to avoid data loss.`,
-			);
+			throw err;
 		}
 
 		try {
-			if (await pathExists(targetAbsPath)) {
+			if (targetExists) {
 				await removeNode(targetAbsPath);
 			}
 		} catch {
@@ -188,13 +198,7 @@ async function transferWithOverwrite({
 		throw err;
 	}
 
-	try {
-		await removeNode(backupAbsPath);
-	} catch (err) {
-		console.warn(
-			`Failed to clean up overwrite backup for "${name}": ${(err as Error).message}`,
-		);
-	}
+	await cleanupOverwriteBackup(backupAbsPath, name);
 }
 
 export async function runCopyMoveTask({
