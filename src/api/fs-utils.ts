@@ -5,7 +5,12 @@ const ROOT = process.cwd();
 
 export function safePath(relativePath: string): string {
 	const resolved = path.resolve(ROOT, relativePath);
-	if (!resolved.startsWith(ROOT)) {
+	const relative = path.relative(ROOT, resolved);
+	if (
+		relative === ".." ||
+		relative.startsWith(`..${path.sep}`) ||
+		path.isAbsolute(relative)
+	) {
 		throw new Error("Path escapes root directory");
 	}
 	return resolved;
