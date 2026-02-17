@@ -8,6 +8,18 @@ import type { TaskOperation, TaskStatus } from '@/types'
 
 export const PANE_TRANSFER_DRAG_MIME = 'application/x-file-desk-pane-transfer'
 
+const paneTransferDragToken =
+	typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+		? crypto.randomUUID()
+		: `pane-transfer-${Math.random().toString(36).slice(2)}-${Date.now().toString(36)}`
+
+interface PaneTransferDragWirePayload {
+	sourcePaneId: PaneId
+	sourcePath: string
+	names: string[]
+	dragToken: string
+}
+
 export interface PaneTransferDragPayload {
 	sourcePaneId: PaneId
 	sourcePath: string
@@ -47,8 +59,12 @@ export function writePaneTransferDragPayload(
 		sourcePath: payload.sourcePath,
 		names,
 	}
+	const wirePayload: PaneTransferDragWirePayload = {
+		...normalizedPayload,
+		dragToken: paneTransferDragToken,
+	}
 
-	dataTransfer.setData(PANE_TRANSFER_DRAG_MIME, JSON.stringify(normalizedPayload))
+	dataTransfer.setData(PANE_TRANSFER_DRAG_MIME, JSON.stringify(wirePayload))
 	dataTransfer.setData('text/plain', names.join('\n'))
 }
 
@@ -59,11 +75,17 @@ export function readPaneTransferDragPayload(
 	if (!rawValue) return null
 
 	try {
-		const parsed = JSON.parse(rawValue) as Partial<PaneTransferDragPayload>
+		const parsed = JSON.parse(rawValue) as Partial<PaneTransferDragWirePayload>
 		if (parsed.sourcePaneId !== 'left' && parsed.sourcePaneId !== 'right') {
 			return null
 		}
 		if (typeof parsed.sourcePath !== 'string' || !Array.isArray(parsed.names)) {
+			return null
+		}
+		if (typeof parsed.dragToken !== 'string') {
+			return null
+		}
+		if (parsed.dragToken !== paneTransferDragToken) {
 			return null
 		}
 
